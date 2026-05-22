@@ -97,8 +97,12 @@ class LHPCZSL(nn.Module):
         self.k_max = getattr(config, 'cluster_num', 5)
         self.k_min = getattr(config, 'cluster_min', 1)
         self.text_ensemble = getattr(config, 'text_ensemble', False)
+        self.image_cond_select = getattr(config, 'image_cond_select', False)
+        self.cond_tau = getattr(config, 'cond_tau', 1.0)
         if self.text_ensemble and sub_meanings_path is None:
             raise ValueError("text_ensemble=True requires sub_meanings_path")
+        if self.image_cond_select and not self.text_ensemble:
+            raise ValueError("image_cond_select=True requires text_ensemble=True")
         (self.attr_k, self.obj_k,
          attr_sem_target, attr_sem_mask, obj_sem_target, obj_sem_mask,
          self.attr_sub_names_list, self.obj_sub_names_list) = \
@@ -121,6 +125,30 @@ class LHPCZSL(nn.Module):
         self.register_buffer('obj_sub_to_obj_idx', torch.tensor(obj_sub_to_obj, dtype=torch.long))
         self.sum_Ka = len(attr_sub_to_attr)
         self.sum_Ko = len(obj_sub_to_obj)
+
+        # ---- Padded sub-index lookup for image-cond pool (always built, cheap). ----
+        # attr_sub_indices_padded[p, k] = global sub-index of primitive p's k-th sub, 0 if pad.
+        # attr_sub_valid_mask[p, k] = True if (p, k) is a real sub.
+        attr_pad = torch.zeros(len(self.attributes), self.k_max, dtype=torch.long)
+        attr_vmask = torch.zeros(len(self.attributes), self.k_max, dtype=torch.bool)
+        cursor = 0
+        for p, subs in enumerate(self.attr_sub_names_list):
+            for k in range(len(subs)):
+                attr_pad[p, k] = cursor
+                attr_vmask[p, k] = True
+                cursor += 1
+        obj_pad = torch.zeros(len(self.classes), self.k_max, dtype=torch.long)
+        obj_vmask = torch.zeros(len(self.classes), self.k_max, dtype=torch.bool)
+        cursor = 0
+        for p, subs in enumerate(self.obj_sub_names_list):
+            for k in range(len(subs)):
+                obj_pad[p, k] = cursor
+                obj_vmask[p, k] = True
+                cursor += 1
+        self.register_buffer('attr_sub_indices_padded', attr_pad)
+        self.register_buffer('attr_sub_valid_mask', attr_vmask)
+        self.register_buffer('obj_sub_indices_padded', obj_pad)
+        self.register_buffer('obj_sub_valid_mask', obj_vmask)
 
         # ---- Visual Adapters ----
         num_blocks = self.clip.visual.transformer.layers
@@ -383,6 +411,42 @@ class LHPCZSL(nn.Module):
         counts.scatter_add_(0, sub_to_prim, ones)
         return out / counts.unsqueeze(-1).clamp(min=1.0)
 
+    def _image_cond_pool(self, sub_feat, img_feat, sub_indices_padded, valid_mask, logit_scale, tau=1.0):
+        """Image-conditional softmax-weighted pool of sub-meaning features → per-primitive logits.
+
+        For each (image x, primitive p):
+            w_p(x, s) = softmax_{s in sub(p)} (<x, sub_feat[s]> / tau)
+            score_p(x) = logit_scale * sum_s w_p(x, s) * <x, sub_feat[s]>
+
+        Args:
+            sub_feat:           (S, D) L2-normalized sub-meaning features.
+            img_feat:           (B, D) L2-normalized image features.
+            sub_indices_padded: (num_prims, k_max) long; (p, k) -> global sub-index, 0 for pad.
+            valid_mask:         (num_prims, k_max) bool; True for real sub slots.
+            logit_scale:        scalar tensor (clip.logit_scale.exp()).
+            tau:                softmax temperature.
+        Returns:
+            (B, num_prims) logit tensor.
+        """
+        # fp32 for numerical stability under AMP fp16 (matches _update_prototypes pattern).
+        sub_f = sub_feat.float()
+        img_f = img_feat.float()
+        raw_sim = img_f @ sub_f.t()  # (B, S)
+        B = raw_sim.size(0)
+
+        # Gather to (B, num_prims, k_max). Pad slots reuse sub-index 0 (garbage), masked below.
+        flat_idx = sub_indices_padded.view(-1)
+        gathered = raw_sim.index_select(1, flat_idx).view(B, *sub_indices_padded.shape)
+
+        # Masked softmax over k_max dim (per primitive). Invalid slot weight collapses to 0.
+        NEG_INF = torch.finfo(gathered.dtype).min / 2
+        mask_b = valid_mask.unsqueeze(0)
+        masked = gathered.masked_fill(~mask_b, NEG_INF)
+        weights = F.softmax(masked / float(tau), dim=-1)
+        # Weighted sum: pad weight is 0 so pad raw_sim contributes 0.
+        out = (weights * gathered).sum(-1)
+        return (logit_scale * out).to(sub_feat.dtype)
+
     def _construct_token_tensors(self, pair_idx):
         attr_idx, obj_idx = pair_idx[:, 0], pair_idx[:, 1]
 
@@ -602,14 +666,19 @@ class LHPCZSL(nn.Module):
             feat, _ = self.text_encoder(
                 self.token_ids[i], token_tensors[i], enable_pos_emb=self.enable_pos_emb
             )
-            if self.text_ensemble and i == 1:
-                feat = self._pool_sub_features(
-                    feat, self.attr_sub_to_attr_idx, len(self.attributes)
-                )
-            elif self.text_ensemble and i == 2:
-                feat = self._pool_sub_features(
-                    feat, self.obj_sub_to_obj_idx, len(self.classes)
-                )
+            if self.text_ensemble and i in (1, 2):
+                sub_to_prim = self.attr_sub_to_attr_idx if i == 1 else self.obj_sub_to_obj_idx
+                num_prims = len(self.attributes) if i == 1 else len(self.classes)
+                if self.image_cond_select:
+                    sub_idx_pad = self.attr_sub_indices_padded if i == 1 else self.obj_sub_indices_padded
+                    sub_vmask = self.attr_sub_valid_mask if i == 1 else self.obj_sub_valid_mask
+                    feat_n = feat / feat.norm(dim=-1, keepdim=True)
+                    logits.append(self._image_cond_pool(
+                        feat_n, norm_img[i], sub_idx_pad, sub_vmask,
+                        logit_scale, tau=self.cond_tau,
+                    ))
+                    continue
+                feat = self._pool_sub_features(feat, sub_to_prim, num_prims)
             feat = feat / feat.norm(dim=-1, keepdim=True)
             logits.append(logit_scale * norm_img[i] @ feat.t())
 
@@ -636,14 +705,19 @@ class LHPCZSL(nn.Module):
             feat, _ = self.text_encoder(
                 self.token_ids[i], token_tensors[i], enable_pos_emb=self.enable_pos_emb
             )
-            if self.text_ensemble and i == 1:
-                feat = self._pool_sub_features(
-                    feat, self.attr_sub_to_attr_idx, len(self.attributes)
-                )
-            elif self.text_ensemble and i == 2:
-                feat = self._pool_sub_features(
-                    feat, self.obj_sub_to_obj_idx, len(self.classes)
-                )
+            if self.text_ensemble and i in (1, 2):
+                sub_to_prim = self.attr_sub_to_attr_idx if i == 1 else self.obj_sub_to_obj_idx
+                num_prims = len(self.attributes) if i == 1 else len(self.classes)
+                if self.image_cond_select:
+                    sub_idx_pad = self.attr_sub_indices_padded if i == 1 else self.obj_sub_indices_padded
+                    sub_vmask = self.attr_sub_valid_mask if i == 1 else self.obj_sub_valid_mask
+                    feat_n = feat / feat.norm(dim=-1, keepdim=True)
+                    logits.append(self._image_cond_pool(
+                        feat_n, norm_img[i], sub_idx_pad, sub_vmask,
+                        logit_scale, tau=self.cond_tau,
+                    ))
+                    continue
+                feat = self._pool_sub_features(feat, sub_to_prim, num_prims)
             feat = feat / feat.norm(dim=-1, keepdim=True)
             logits.append(logit_scale * norm_img[i] @ feat.t())
 

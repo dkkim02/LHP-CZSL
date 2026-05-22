@@ -10,6 +10,8 @@ model:
   cluster_min: 1
   sub_meanings_path: "data/descriptions_mit.json"
   text_ensemble: True
+  image_cond_select: True
+  cond_tau: 1.0
   proto_momentum: 0.99
   pair_loss_weight: 1.0
   pair_inference_weight: 1.0
@@ -37,7 +39,7 @@ train:
   seed: 0
   epochs: 15
   epoch_start: 0
-  save_path: checkpoint/lhp_czsl_v3_text_l14_mit_seed0
+  save_path: checkpoint/lhp_czsl_v3_text_imgcond_mit_l14_seed0
   save_every_n: 100
   val_metric: best_hm
   save_final_model: True

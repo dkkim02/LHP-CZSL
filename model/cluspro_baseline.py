@@ -399,6 +399,12 @@ class ClusProBaseline(nn.Module):
     # Loss & Inference
     # ==================================================================
 
+    def _cosface_margin(self, logits, target, m, scale):
+        # CosFace additive cosine margin (§16-3 D1/D5).
+        # logits = scale * cos(theta). Subtract scale*m from target class only.
+        one_hot = F.one_hot(target, num_classes=logits.size(-1)).to(logits.dtype)
+        return logits - (m * scale) * one_hot
+
     def loss_calu(self, predict, target):
         loss_fn = nn.CrossEntropyLoss()
         batch_attr, batch_obj, batch_target = target[1], target[2], target[3]
@@ -410,6 +416,13 @@ class ClusProBaseline(nn.Module):
             comp_logits, attr_logits, obj_logits, loss_contras, loss_hsic = predict
         else:
             comp_logits, attr_logits, obj_logits = predict
+
+        m = float(getattr(self.config, 'cosface_margin', 0.0))
+        if self.training and m > 0:
+            scale = self.clip.logit_scale.exp().detach()
+            comp_logits = self._cosface_margin(comp_logits, batch_target, m, scale)
+            attr_logits = self._cosface_margin(attr_logits, batch_attr, m, scale)
+            obj_logits = self._cosface_margin(obj_logits, batch_obj, m, scale)
 
         loss = (
             self.pair_loss_weight * loss_fn(comp_logits, batch_target) +

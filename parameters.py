@@ -53,6 +53,7 @@ parser.add_argument("--obj_loss_weight", type=float, default=1.0)
 parser.add_argument("--pair_inference_weight", type=float, default=1.0)
 parser.add_argument("--attr_inference_weight", type=float, default=1.0)
 parser.add_argument("--obj_inference_weight", type=float, default=1.0)
+parser.add_argument("--cosface_margin", help="CosFace additive cosine margin on comp/attr/obj heads (§16). 0 disables.", type=float, default=0.0)
 
 # MSCI + VAPS + DHNO
 parser.add_argument("--use_vaps", help="enable VAPS (Visual-Adaptive Prompt Shifting)", type=bool, default=True)

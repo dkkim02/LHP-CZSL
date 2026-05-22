@@ -1573,3 +1573,221 @@ log `logs/train_v3_text_imgcond_mit_probe_20260518_173147.log`. 1차 시도(17:2
 
 ---
 
+## 16. Axis G — Margin loss (CosFace) on comp/attr/obj heads (5-19 진입)
+
+### 16-1. 진입 동기 + 가설
+
+§14-10 text-side enrichment axis 영구 봉인 직후 새 axis. 봉인된 3축(text-side LLM enrichment / vision-side distillation / image-cond selection)을 피하면서 baseline 0.3887을 흔드는 게 목표. text/vision/selection을 모두 건드리지 않고 **loss surface 자체**에 개입하는 가장 cheap한 후보.
+
+**가설**: baseline의 plain CE는 seen pair 사이 boundary가 too soft → seen-overfit (epoch 4-5부터 단조 회귀, §13-5h `R2D2 dw01 best_hm` 학습곡선). CosFace의 additive cosine margin은 seen target class의 cosine을 `m`만큼 낮춰 강제로 boundary tightening → seen logit이 더 강하게 학습되어야만 통과 → over-confident 해소 + unseen pair에 score 여유.
+
+**Why not in 봉인 axis**: input augmentation도 아니고 visual representation도 아니고 selection도 아님. CE 정의 자체의 regularization이라 직교 axis. supervised classification 표준기법 (CosFace ICCV'18, ArcFace CVPR'19)이라 narrative도 깔끔.
+
+### 16-2. 선행 연구 + 차별점
+
+- **CosFace (Wang et al., ICCV 2018)**: face recognition. cos(θ) − m. s=64, m=0.35.
+- **ArcFace (Deng et al., CVPR 2019)**: cos(θ + m). angular additive.
+- **CZSL에서 margin loss 적용 사례**: 검색 필요 (현재까지 mit-states/UT-Zap CZSL 표준 비교군에서 직접 보고된 적 없음). 있다면 차별화 narrative 조정. **TODO Stage 0 직전 lit search.**
+
+CZSL에서 안 쓴 이유 후보: (a) 1262 pair × 115/245 primitive는 face recognition의 ~수만 class와 다름, m 작아야 함, (b) primitive head와 comp head 사이 margin 상호작용 미검증.
+
+### 16-3. Design 결정 (8개, §14-3 패턴)
+
+| D# | 결정 | 선택 | 근거 |
+|---|---|---|---|
+| D1 | Margin type | **CosFace** (cos − m, additive cosine) | ArcFace보다 numerical stable, debug 쉬움. m=0.35 face benchmark는 CZSL에 무리지만 일단 cosine-additive로 시작. |
+| D2 | 적용 head | **comp + attr + obj 3개 모두** | 셋 다 CE 구조 동일. comp만 적용 시 attr/obj head는 unaffected → 불균형. 전체 일관 처리. |
+| D3 | Margin value m | **0.1** (default) | face 0.35는 1262-pair에 강함. mit-states pair similarity 분포상 m=0.1이 cos ~0.3-0.4 평균에서 ~25-30% margin = 합리적 starting point. Stage 1 tie 시 {0.05, 0.2} ablation. |
+| D4 | Scale s | **기존 `self.clip.logit_scale.exp()` 유지** (~100, 학습 가능) | learned scale 교체는 baseline 흔들음. margin만 추가, scale 보존. |
+| D5 | 적용 시점 | **training only** (loss_calu 내부) | margin은 regularizer. inference logit_infer는 무수정. |
+| D6 | val_metric | **`best_hm`** | §13-5g/§14 lesson — best_loss는 ep1-2 over-select. |
+| D7 | epochs | **15** | LHP-CZSL 표준 (v3_text / image-cond와 동일). |
+| D8 | 구현 | **`loss_calu`에 in-place margin step 삽입** | forward 수정 무. config flag `cosface_margin > 0`일 때만 활성. 봉인 axis(R2D2 forward 수정)와 달리 diff 최소. |
+
+### 16-4. 코드 변경 계획
+
+**대상 파일**: `model/cluspro_baseline.py` (baseline 본체). v3_text / image-cond / R2D2 변형 모델에는 적용 안 함 — pure baseline + margin 단일 변경.
+
+**수정 1**: `loss_calu` (line 402-423).
+
+```python
+def _cosface_margin(self, logits, target, m, scale):
+    # logits: (B, C) = scale * cos(theta).  target: (B,).
+    one_hot = F.one_hot(target, num_classes=logits.size(-1)).float()
+    cos = logits / scale
+    cos = cos - m * one_hot
+    return cos * scale
+
+def loss_calu(self, predict, target):
+    loss_fn = nn.CrossEntropyLoss()
+    batch_attr, batch_obj, batch_target = target[1], target[2], target[3]
+    batch_attr = batch_attr.cuda(); batch_obj = batch_obj.cuda(); batch_target = batch_target.cuda()
+
+    if self.training:
+        comp_logits, attr_logits, obj_logits, loss_contras, loss_hsic = predict
+    else:
+        comp_logits, attr_logits, obj_logits = predict
+
+    m = getattr(self.config, 'cosface_margin', 0.0)
+    if self.training and m > 0:
+        scale = self.clip.logit_scale.exp().detach()  # detach so margin doesn't gradient back to scale
+        comp_logits = self._cosface_margin(comp_logits, batch_target, m, scale)
+        attr_logits = self._cosface_margin(attr_logits, batch_attr, m, scale)
+        obj_logits = self._cosface_margin(obj_logits, batch_obj, m, scale)
+
+    loss = (self.pair_loss_weight * loss_fn(comp_logits, batch_target)
+            + self.attr_loss_weight * loss_fn(attr_logits, batch_attr)
+            + self.obj_loss_weight * loss_fn(obj_logits, batch_obj))
+    if self.training:
+        loss = loss + self.contrastive_weight * loss_contras + self.hsic_weight * loss_hsic
+    return loss
+```
+
+**수정 2**: `parameters.py`에 `--cosface_margin` argument 추가 (default 0.0).
+
+**수정 3**: 새 config `config/lhp_czsl_baseline_cosface_mit_l14_seed0.yml` — 기존 baseline yml 복제 + `cosface_margin: 0.1` 한 줄 추가.
+
+**수정 4**: 새 launcher `scripts/run_baseline_cosface_mit_seed0.sh` — 기존 baseline 스크립트 복제 + yml 경로만 변경.
+
+**예상 LOC**: model 코드 +15줄, parameters +1줄, config 1줄, launcher 카피.
+
+### 16-5. 4-stage plan + pre-registered judgment
+
+| Stage | 내용 | 예상 시간 | 산출물 |
+|---|---|---|---|
+| **0** | Probe: 코드 변경 + sanity (mit-states seed 0, **1 epoch**), NaN 검사, loss 정상 감소, margin OFF/ON 둘 다 확인 | ~30min | 1ep log × 2 (m=0, m=0.1) |
+| **1** | mit-states seed 0, **15 epoch**, val_metric=best_hm, cosface_margin=0.1 | ~5h | test_pairs HM/AUC. 판정 적용. |
+| **2** | Stage 1 통과 시 mit-states 3-seed (0, 1, 2) | ~15h | 3-seed mean ± std |
+| **3** | Stage 2 통과 시 UT-Zap cross-dataset 3-seed | ~24h | mit-states + UT-Zap 양쪽 신호 |
+
+**Pre-registered judgment (Stage 1)**:
+- test HM ≥ 0.3937 (baseline 0.3887 + 0.005) → **axis 살림, Stage 2 launch**.
+- test HM ≤ 0.3837 (baseline − 0.005) → **axis 봉인**. 8연패 누적, margin axis 영구 폐기.
+- Tie 구간 (0.3837 < HM < 0.3937) → **m ∈ {0.05, 0.2} ablation (seed 0, 각 5h, 총 10h) 후 best m으로 재판정**. 둘 다 tie면 봉인.
+
+**Pre-registered judgment (Stage 2)**:
+- mit-states 3-seed mean HM Δ ≥ +0.005 over baseline 3-seed → Stage 3 (UT-Zap).
+- Δ < +0.005 → mit-states-only 효과로 분류, narrative weakening, Stage 3 보류.
+
+**Pre-registered judgment (Stage 3)**:
+- UT-Zap 3-seed mean HM Δ ≥ +0.005 → **main signal 확정**. paper-class. 추가 ablation (m sweep, ArcFace 비교, attr-only vs obj-only vs comp-only).
+- mit-states 통과 + UT-Zap 실패 → **dataset-dependency** 표기 (axis G도 v3_text와 같은 함정에 빠지는지 확인).
+- 둘 다 실패 → 봉인.
+
+### 16-6. Open questions
+
+- **logit_scale × m 상호작용**: scale ≈ 100, m=0.1 → margin subtraction ≈ 10 logit unit. CE softmax에서 사실상 target 강제 무한정 멀어짐 효과 → gradient blow-up 위험. Stage 0 probe에서 첫 step loss와 gradient norm 점검 필수. 위험 시 `m → m / scale` (target cos에서 직접 차감) 대신 `effective_margin = m × scale_clip_max` 등 clip 방식 검토.
+- **attr/obj head 동시 margin**: comp pair = attr × obj 관계라 셋 다 margin 시 double-penalize 가능. Stage 0에서 attr/obj head 따로 OFF/ON 비교 검토 (D2 변경 가능성).
+- **best_loss val_metric도 같이 봐야?**: §13-5g lesson 따라 best_hm 사용하지만, margin loss는 train loss 자체에 추가 페널티 → val loss 패턴이 baseline과 달라질 수 있음. Stage 1 학습 곡선 보고 사후 분석.
+- **HSIC / contrastive loss와 충돌?**: 기존 baseline에 `loss_contras`, `loss_hsic` 있음. margin은 main CE만 수정하므로 충돌 없지만, 셋이 다 regularizer라 효과 중첩 가능. Stage 1 결과 후 ablation (margin only vs margin + hsic 등) 필요.
+
+### 16-7. 다음 액션
+
+1. **사용자 confirm 받고** Stage 0 probe 코드 변경 시작 — `loss_calu` 패치 + parameters + config + launcher.
+2. Stage 0 sanity (1ep × 2 — m=0 OFF / m=0.1 ON 비교, OFF 결과는 기존 baseline과 bit-exact 동일해야 함, 코드 변경 무영향 보장).
+3. Stage 0 통과 후 Stage 1 launch (GPU 1, ~5h).
+4. Stage 1 결과 §16-5 판정 적용 → §16-8 신설.
+
+**ETA**: 5-19 13:00 KST 코드 작업 시작 → 13:30 Stage 0 시작 → 14:00 Stage 0 종료 → 14:00 Stage 1 launch → **5-19 19:00 KST 결과**.
+
+### 16-8. Stage 0 probe 통과 + Stage 1 launch — 5-19 22:19 KST
+
+**코드 변경 (§16-4)**:
+- `model/cluspro_baseline.py:402-406` — `_cosface_margin(logits, target, m, scale)` helper (one_hot에 `scale*m` 차감).
+- `model/cluspro_baseline.py:420-425` — `loss_calu` 내부 `cosface_margin > 0 and self.training`일 때만 comp/attr/obj 3 head 모두에 margin 적용. `scale = self.clip.logit_scale.exp().detach()` (gradient → scale로 흐르지 않게 분리, §16-6 risk 대응).
+- `parameters.py:56` — `--cosface_margin` float default 0.0.
+- configs: `lhp_czsl_baseline_cosface_m{00,01}_mit_l14_probe.yml` (1ep), `lhp_czsl_baseline_cosface_m01_mit_l14_seed0.yml` (15ep).
+- launchers: `scripts/run_baseline_cosface_mit_probe.sh`, `scripts/run_baseline_cosface_mit_seed0.sh`.
+
+**Stage 0 결과 (5-19 11:31–12:29 KST, 1ep × 2)**:
+
+| Probe | start loss | end loss (step 7586) | val HM | val AUC | test HM | test AUC | NaN/inf |
+|---|---|---|---|---|---|---|---|
+| m=0.0 OFF | 2.42 | 1.36 | 0.3716 | 0.1972 | 0.3423 | 0.1744 | 0 |
+| m=0.1 ON | 6.16 | 5.01 | 0.3763 | 0.2026 | 0.3472 | 0.1804 | 0 |
+
+- m=0.1 시작 loss 6.16 = m=0 시작 2.42 + ~3.74 (scale*m=10 logit unit이 target class에서 빠지므로 CE에 약 +log(softmax 분모 비율) 추가 — 정량적으로 예상 범위, gradient 폭주 아님). 둘 다 monotone 감소, NaN/inf 0회.
+- m=0.0 OFF run의 학습 시간 (28m 46s)이 m=0.1 ON (28m 38s)과 동일 수준 → margin 추가 cost 무시할 만함.
+- m=0.0 1ep test HM 0.3423은 §13-5h baseline 15ep mean 0.3887보다 당연히 낮음 (1ep만). 의미는 OFF/ON 비교에 있음 — ON이 1ep에서 +0.0049 HM. 단 1ep noise라 Stage 1 결과 대기.
+
+**Stage 0 통과 판정**: §16-6 risk 모두 클리어 — (a) NaN 없음, (b) loss bounded, (c) margin OFF 분기가 forward 무수정 (m>0 분기만 활성).
+
+**Stage 1 launch (5-19 22:19:50 KST)**:
+- config: `config/lhp_czsl_baseline_cosface_m01_mit_l14_seed0.yml` (15ep, cosface_margin=0.1, val_metric=best_hm, batch=8/accum=8)
+- launcher: `scripts/run_baseline_cosface_mit_seed0.sh`
+- log: `logs/train_baseline_cosface_m01_mit_seed0_20260519_221950.log`
+- nohup wrapper: `logs/baseline_cosface_m01_seed0_nohup.log`
+- PID: 4128877, GPU 1 (88% util, 11.6GB)
+- ETA: ~5h → **5-20 03:20 KST 예상**
+
+**판정 (§16-5 사전 등록 재인용)**:
+- test HM ≥ 0.3937 (baseline 0.3887 + 0.005) → Stage 2 (mit-states 3-seed) launch.
+- test HM ≤ 0.3837 (baseline − 0.005) → axis 봉인 (8연패).
+- tie (0.3837 < HM < 0.3937) → m ∈ {0.05, 0.2} ablation 후 재판정.
+
+**다음 액션**: Stage 1 종료 후 final 라인(val_best.pt → test_pairs)으로 §16-5 판정 적용 → 본 절 update.
+
+### 16-9. Stage 1 종료 + 판정 — 5-20 04:25 KST
+
+**학습 종료**: 2026-05-20 04:25:38 KST (시작 22:19:50, 총 ~6h 06m, ETA 5h보다 +1h).
+
+**Val 학습 곡선 (15 epoch)** — best_hm 우상향 후 평탄:
+
+| epoch | best_seen | best_unseen | best_hm | AUC | attr_acc | obj_acc |
+|---|---|---|---|---|---|---|
+| 1 | 0.4208 | 0.5564 | 0.3789 | 0.2051 | 0.3973 | 0.5819 |
+| 2 | 0.4572 | 0.5648 | 0.3920 | 0.2209 | 0.3994 | 0.5859 |
+| 3 | 0.4713 | 0.5595 | 0.3897 | 0.2231 | 0.3904 | 0.5841 |
+| 4 | 0.4875 | 0.5527 | 0.3957 | 0.2287 | 0.4001 | 0.5803 |
+| 5 | 0.4740 | 0.5612 | 0.3932 | 0.2250 | 0.3883 | 0.5799 |
+| 6 | 0.4897 | 0.5542 | 0.3954 | 0.2289 | 0.3918 | 0.5808 |
+| 7 | 0.4810 | 0.5556 | 0.3932 | 0.2267 | 0.3919 | 0.5791 |
+| 8 | 0.4875 | 0.5582 | 0.4017 | 0.2320 | 0.3936 | 0.5791 |
+| 9 | 0.4978 | 0.5562 | 0.4041 | 0.2347 | 0.3926 | 0.5790 |
+| 10 | 0.4989 | 0.5522 | 0.4056 | 0.2343 | 0.3940 | 0.5812 |
+| 11 | 0.5000 | 0.5515 | 0.4078 | 0.2353 | 0.3931 | 0.5788 |
+| 12 | 0.5027 | 0.5496 | 0.4072 | 0.2359 | 0.3930 | 0.5764 |
+| 13 | 0.5011 | 0.5497 | 0.4066 | 0.2348 | 0.3916 | 0.5774 |
+| 14 | 0.5016 | 0.5471 | 0.4058 | 0.2338 | 0.3911 | 0.5727 |
+| **15** | **0.5043** | **0.5459** | **0.4086** | **0.2355** | 0.3932 | 0.5745 |
+
+- val best: **epoch 15, HM 0.4086** (val_best.pt 04:21 KST 저장 → val_best 시점 일치).
+- AUC는 epoch 12 (0.2359) 최고 — best_hm metric 기준이라 epoch 15 선택.
+- monotone 우상향: epoch 1→15 HM Δ +0.0297. NaN/inf 무관측, 학습 안정적.
+
+**Test (Closed World, val_best 모델 = epoch 15)**:
+
+| | seen | unseen | HM | AUC | attr_acc | obj_acc |
+|---|---|---|---|---|---|---|
+| **cosface m=0.1 seed 0** | 0.4819 | 0.5177 | **0.3763** | 0.2088 | 0.3934 | 0.5514 |
+| baseline (§13-5h, 3-seed mean) | — | — | 0.3887 | — | — | — |
+
+- Δ test HM vs baseline: **−0.0124** (0.3763 − 0.3887)
+- val→test gap: −0.0323 (val 0.4086 → test 0.3763). §13-5h baseline의 val→test gap과 유사 수준이라 overfit 신호 아님 → margin이 test에서도 무효.
+
+**§16-5 사전 등록 판정 적용**:
+- 임계 1 (Stage 2 launch): HM ≥ 0.3937 → **불충족** (0.3763 < 0.3937).
+- 임계 2 (axis 봉인): HM ≤ 0.3837 → **충족** (0.3763 ≤ 0.3837, Δ −0.0124 < −0.005).
+- Tie 구간 (0.3837 < HM < 0.3937): 해당 안 됨.
+
+**결론**: ❌ **CosFace margin axis 봉인.** Stage 2 (3-seed), Stage 3 (UT-Zap), m sweep 모두 launch 안 함 — pre-registered가 m={0.05, 0.2} ablation은 tie 구간일 때만 허용, 본 결과는 명확한 fail이라 ablation 면제.
+
+**누적 실패 카운터**: §13-5h 이후 axis 봉인 누적 **8연패** (이전 7 + cosface margin) — pre-registration대로 추가 margin variant 실험 금지.
+
+**왜 망가졌는지 (post-hoc 가설, 결정에 영향 없음)**:
+- val HM은 baseline 0.3887 → cosface 0.4086 (+0.0199 val) → **val에서는 보임**.
+- test HM은 0.3763 → val→test 일반화 실패. cosface margin이 train pair에 대해서만 decision boundary를 강제로 멀게 만들었지만 unseen comp pair에는 그 margin이 의미 없음. inference 시 m=0 분기로 흐르는 코드 구조라 train/test mismatch가 강해진 듯 (§16-6 open Q "best_loss val_metric"와 연결).
+- 단, 이건 후속 ablation 없이는 검증 불가, axis 봉인 결정에 영향 없음. 메모로만 기록.
+
+**산출물**:
+- 모델: `checkpoint/lhp_czsl_baseline_cosface_m01_mit_l14_seed0/val_best.pt`, `final_model.pt` (각 1.75GB).
+- 로그: `logs/train_baseline_cosface_m01_mit_seed0_20260519_221950.log` (10.7MB).
+
+**다음 액션**:
+- Cosface margin axis 사망 → §17 next-axis 선정 필요. 후보:
+  - (a) text enrichment via LLM-visual-descriptions (memory: `project_lhp_czsl_text_enrich`) — image-conditional selection 결합.
+  - (b) §16-1 sealed 8 axes 외 미탐색 axis brainstorm.
+- 사용자 confirm 받고 다음 axis briefing.
+
+---
+

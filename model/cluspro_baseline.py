@@ -306,8 +306,24 @@ class ClusProBaseline(nn.Module):
         batch_img = batch[0].cuda()
         attr_idx, obj_idx = batch[1], batch[2]
 
-        f_global, _ = self.encode_image(batch_img.type(self.clip.dtype))
-        B = f_global.shape[0]
+        # H1 (§17-8): when same_prim_sample=True + hard_pair_weight>0, batch carries
+        # (same_attr/diff_obj img, same_obj/diff_attr img) + masks at indices 4..13.
+        hpw = float(getattr(self.config, 'hard_pair_weight', 0.0))
+        has_hard_pair = (len(batch) >= 14) and (hpw > 0) and self.training
+        if has_hard_pair:
+            sa_img = batch[4].cuda()
+            sa_mask = batch[8]
+            so_img = batch[9].cuda()
+            so_mask = batch[13]
+            all_img = torch.cat([batch_img, sa_img, so_img], dim=0)
+            f_global_all, _ = self.encode_image(all_img.type(self.clip.dtype))
+            B = batch_img.shape[0]
+            f_global = f_global_all[:B]
+            f_sa = f_global_all[B:2*B]
+            f_so = f_global_all[2*B:]
+        else:
+            f_global, _ = self.encode_image(batch_img.type(self.clip.dtype))
+            B = f_global.shape[0]
 
         f_attr = self.attr_disentangler(f_global)
         f_obj = self.obj_disentangler(f_global)
@@ -368,7 +384,23 @@ class ClusProBaseline(nn.Module):
             logits.append(logit_scale * norm_img[i] @ feat.t())
 
         comp_logits, attr_logits, obj_logits = logits
-        return comp_logits, attr_logits, obj_logits, loss_contrastive, loss_hsic
+
+        if has_hard_pair:
+            sa_attr_proj = self.attr_proj(self.attr_disentangler(f_sa))
+            sa_obj_proj  = self.obj_proj(self.obj_disentangler(f_sa))
+            so_attr_proj = self.attr_proj(self.attr_disentangler(f_so))
+            so_obj_proj  = self.obj_proj(self.obj_disentangler(f_so))
+            tau = float(getattr(self.config, 'hard_pair_temperature', 0.1))
+            loss_hard = self._hard_pair_loss(
+                f_attr_proj, f_obj_proj,
+                sa_attr_proj, sa_obj_proj,
+                so_attr_proj, so_obj_proj,
+                sa_mask, so_mask, tau,
+            )
+        else:
+            loss_hard = f_global.new_zeros(())
+
+        return comp_logits, attr_logits, obj_logits, loss_contrastive, loss_hsic, loss_hard
 
     def val_forward(self, batch, idx):
         batch_img = batch[0].cuda()
@@ -405,6 +437,40 @@ class ClusProBaseline(nn.Module):
         one_hot = F.one_hot(target, num_classes=logits.size(-1)).to(logits.dtype)
         return logits - (m * scale) * one_hot
 
+    def _hard_pair_loss(self, anchor_attr, anchor_obj,
+                        sa_attr, sa_obj, so_attr, so_obj,
+                        sa_mask, so_mask, tau):
+        # H1 (§17-8): InfoNCE on disentangled projection features.
+        # L_attr: anchor_attr ↔ sa_attr (same attribute) positive,
+        #         within-batch so_attr (different attribute, same object) negatives.
+        # L_obj : anchor_obj ↔ so_obj (same object) positive,
+        #         within-batch sa_obj (different object, same attribute) negatives.
+        aa = F.normalize(anchor_attr.float(), dim=-1)
+        ao = F.normalize(anchor_obj.float(),  dim=-1)
+        pa = F.normalize(sa_attr.float(), dim=-1)
+        po = F.normalize(so_obj.float(),  dim=-1)
+        na = F.normalize(so_attr.float(), dim=-1)
+        no_ = F.normalize(sa_obj.float(),  dim=-1)
+
+        B = aa.size(0)
+        device = aa.device
+        labels = torch.zeros(B, dtype=torch.long, device=device)
+
+        pos_a = (aa * pa).sum(dim=-1, keepdim=True) / tau
+        neg_a = aa @ na.t() / tau
+        loss_a_per = F.cross_entropy(torch.cat([pos_a, neg_a], dim=1), labels, reduction='none')
+
+        pos_o = (ao * po).sum(dim=-1, keepdim=True) / tau
+        neg_o = ao @ no_.t() / tau
+        loss_o_per = F.cross_entropy(torch.cat([pos_o, neg_o], dim=1), labels, reduction='none')
+
+        sa_m = sa_mask.float().to(device)
+        so_m = so_mask.float().to(device)
+        eps = 1e-8
+        loss_a = (loss_a_per * sa_m).sum() / (sa_m.sum() + eps)
+        loss_o = (loss_o_per * so_m).sum() / (so_m.sum() + eps)
+        return loss_a + loss_o
+
     def loss_calu(self, predict, target):
         loss_fn = nn.CrossEntropyLoss()
         batch_attr, batch_obj, batch_target = target[1], target[2], target[3]
@@ -413,7 +479,7 @@ class ClusProBaseline(nn.Module):
         batch_target = batch_target.cuda()
 
         if self.training:
-            comp_logits, attr_logits, obj_logits, loss_contras, loss_hsic = predict
+            comp_logits, attr_logits, obj_logits, loss_contras, loss_hsic, loss_hard = predict
         else:
             comp_logits, attr_logits, obj_logits = predict
 
@@ -432,6 +498,9 @@ class ClusProBaseline(nn.Module):
 
         if self.training:
             loss = loss + self.contrastive_weight * loss_contras + self.hsic_weight * loss_hsic
+            hpw = float(getattr(self.config, 'hard_pair_weight', 0.0))
+            if hpw > 0:
+                loss = loss + hpw * loss_hard
 
         return loss
 

@@ -1791,3 +1791,189 @@ def loss_calu(self, predict, target):
 
 ---
 
+## 17. Axis H — Multi-seed ensemble (H2) + inference-weight calibration (H4) (5-20 진입)
+
+### 17-1. 진입 동기 + 가설
+
+§16-9 cosface 봉인 직후 (axis 9연패는 아님 — H2/H4는 retrain 없는 inference-time intervention, mechanism-level sealed 8 axes와 직교). 사용자가 "어떻게든 SOTA 달성" 지시 → 가장 cheap한 inference-time 두 axis를 우선 평가.
+
+**Initial reading 오류 정정**: H4 framing 시 test.py:215+ `evaluator.evaluate_predictions`가 **이미 test data에서 bias sweep**해서 `best_hm`을 산출하고 있음을 발견 (test.py:305 `correct_unseen_score_diff` from test data → biaslist iteration). 따라서 단순 bias 캘리브레이션은 dead axis. 진짜 미탐색 lever는:
+- **H2**: 3-seed val_best.pt의 raw (comp, attr, obj) logits를 평균 → `logit_infer` 통과 → evaluator. seed std 0.0008 대비 +0.005 cutoff 기대.
+- **H4 (revised)**: `model.logit_infer`의 (`pair_inf_w`, `attr_inf_w`, `obj_inf_w`) 가중치 + per-head softmax 온도 (`T_a`, `T_o`) 를 val에서 grid sweep, test에 적용. 현 default (1,1,1,1,1) 외 점 미탐색.
+
+**가설**: 
+- H2는 seed-noise를 줄여 val→test gap (cosface에서 −0.032 관측)을 부분 해소.
+- H4는 `logit_infer`가 `comp + attr_softmax × obj_softmax` 구조라 가중치 변경이 unseen pair에서 ranking을 재조정할 여지 있음.
+
+### 17-2. Design 결정
+
+| D# | 결정 | 선택 | 근거 |
+|---|---|---|---|
+| D1 | H2 ensemble 방식 | **raw logit (comp/attr/obj) 평균** | logit_infer 비선형성 보존, H4 grid와 stackable. |
+| D2 | 사용 ckpt | `cluspro_baseline_l14_mit_v2_seed{0,1,2}/val_best.pt` (§12-1) | post-fix 3-seed mean baseline 0.3887 ± 0.0008과 직접 비교. |
+| D3 | H4 grid (Stage A coarse) | PAIR∈{1,2}, ATTR/OBJ∈{1,3,10}, T=1 → 18 cfg | 빠른 first signal. |
+| D4 | H4 grid (Stage B fine) | PAIR∈{0.1,0.5,1,2}, ATTR/OBJ∈{0.5,1,5}, T_a/T_o∈{0.5,1,2} → 324 cfg | coarse no-signal 후 lower pair_w + temperature 확장. |
+| D5 | val_metric | val `best_hm` (evaluator 자체가 bias sweep 내장) | inference-time 캘리브레이션에서도 동일 metric. |
+| D6 | Stacking | H4 grid를 ensemble val에 sweep → ensemble test에 best cfg 적용 | H2+H4 직교성 검증. |
+
+### 17-3. 코드 + 캐시
+
+**스크립트**:
+- `scripts/eval_ensemble.py` — 3-seed forward + raw logit 캐싱 + H2 ensemble + H4 coarse sweep.
+- `scripts/eval_sweep_fine.py` — 캐시 재사용 + H4 fine sweep on ensemble.
+
+**캐시**: `checkpoint/ensemble_cache_mit_l14_v2/seed{0,1,2}_{val,test}.pt` — raw (comp, attr, obj) tensors, attr_gt, obj_gt, pair_gt. 재사용 가능.
+
+**검증**: per-seed default 적용 시 §12-1과 정확 일치 (seed 0/1/2 test HM 0.3879/0.3889/0.3894). `apply_logit_infer` 벡터화 재구현이 `model.logit_infer`와 동일함을 sanity 확인.
+
+### 17-4. 결과
+
+**H2 (3-seed ensemble, default weights)**:
+
+| | seen | unseen | HM | AUC | attr | obj |
+|---|---|---|---|---|---|---|
+| seed 0 val (sanity) | 0.5136 | 0.5680 | 0.4267 | 0.2527 | 0.4023 | 0.5896 |
+| seed 0 test (sanity) | 0.4933 | 0.5226 | 0.3879 | 0.2176 | 0.3842 | 0.5590 |
+| seed 1 test | 0.4857 | 0.5276 | 0.3889 | 0.2172 | 0.3858 | 0.5561 |
+| seed 2 test | 0.4874 | 0.5220 | 0.3894 | 0.2165 | 0.3852 | 0.5546 |
+| **baseline 3-seed mean** (§12-1) | 0.4888 | 0.5241 | **0.3887 ± 0.0008** | 0.2171 | 0.3851 | 0.5566 |
+| **H2 ensemble VAL** | 0.5217 | 0.5715 | **0.4326** | 0.2589 | 0.4050 | 0.5917 |
+| **H2 ensemble TEST** | 0.4912 | 0.5308 | **0.3924** | 0.2218 | 0.3857 | 0.5595 |
+
+- H2 ensemble TEST HM Δ = **+0.0037** vs 3-seed single mean. seed std 0.0008 기준 **~5σ** → 통계적으로 의미 있음.
+- AUC Δ = +0.0047 (~8σ).
+- 그러나 사전 등록 cutoff **+0.005에 −0.0013 미달** → 엄격 룰로는 tie zone.
+
+**H4 coarse (18 cfg, seed 0)** — best val cfg = **(1.0, 1.0, 1.0, 1.0, 1.0) 즉 default**. test HM 0.3879. **gain 0**.
+
+**H4 fine (324 cfg, ensemble)** — best val cfg = (0.5, 0.5, 1.0, 0.5, 2.0). VAL HM 0.4329, TEST HM **0.3923** (Δ vs H2 default −0.0001, 노이즈). top-10 cfg가 모두 val_hm 0.4329로 동률 → grid 평면에서 logit_infer 변형의 ranking 영향이 미미함.
+
+**Stacked (H2 + H4)**: 0.3923 (== H2 단독).
+
+### 17-5. 판정 + 진단
+
+**H4 axis 사망 확정**: 
+- coarse + fine grid 모두 default ≈ optimal.
+- 메커니즘: `logit_infer`에서 `comp_logits`의 scale (~logit_scale × cos ≈ 100 × 0.4 = 40)이 `attr_pred × obj_pred` 항 (∈ [0,1])보다 약 1-2 order 크다. 어떤 (pair_w, attr_w, obj_w) 조합도 comp 항을 dominant하게 두는 한 ranking 거의 동일. 
+- `pair_w=0.1`로 comp 억제해도 attr×obj는 frequent primitive pair에 bias 걸리고 evaluator의 bias sweep이 이를 다시 보정 → net 변화 0.
+- 결론: **inference-weight/temperature 캘리브레이션 axis는 mit-states/ViT-L/14에서 effective space가 거의 비어있다**.
+
+**H2 axis 부분 성공**:
+- +0.0037 statistically real (5σ), 사전 등록 cutoff +0.005에는 0.0013 short.
+- mechanism: 3-seed val_best.pt가 서로 다른 train 데이터 순서로 다르게 overfit → 평균하면 high-variance 영역만 cancel, 공통 신호 잔존. val→test gap 0.032 → ensemble val 0.4326 / test 0.3924로 gap이 0.040으로 약간 커짐 → ensemble은 val에서 더 많이 얻고 test에서 비례적으로 얻음.
+- **strict cutoff 미달이지만 axis 자체는 dead 아님**. 추가 다양성 (multi-epoch, multi-config) 결합 시 +0.005 진입 가능성 있음.
+
+**SOTA 대비 현 위치**:
+- 3-seed mean: 0.3887 → 우리 최고 (R2D2 dw01 best_hm 0.3926, §13-5h) → H2 ensemble 0.3924 (R2D2 dw01과 거의 동률, 단 retrain 없음).
+- ClusPro paper 0.407까지 **Δ +0.0146 필요**. H2 단독으로는 미달.
+
+### 17-6. 다음 액션 — pivot 결정 필요
+
+H2 +0.0037을 baseline의 새 reporting standard로 채택 (no retrain cost) + 다음 axis는 큰 신호를 노려야 SOTA 도달 가능.
+
+후보:
+- **H1 (hard-pair sampling, `same_prim_sample=True`)** — data-level 새 axis, retrain 필요 (5h × n seed). CGE/SymNet 등 표준 트릭, 한 번도 안 시도. 사전 등록 cutoff +0.005 vs (H2 0.3924) → ≥ 0.3974.
+- **H3 (ClusPro 재현 갭 §11-2 직접 닫기)** — 1.8pp gap (λ_h, init, dropout) 진단 활용. 성공 시 0.407 SOTA. debug-heavy.
+- **multi-checkpoint × multi-seed ensemble** — 3 seed × {ep13, ep14, ep15} = 9-12 ckpt 평균. forward만 ~60분 추가. cheap 확장.
+
+**현 권장**: multi-ckpt ensemble을 H2 확장으로 먼저 시도 (cheap), 그 후 H1 / H3 큰 axis 결정.
+
+**산출물**:
+- `scripts/eval_ensemble.py`, `scripts/eval_sweep_fine.py`
+- `checkpoint/ensemble_cache_mit_l14_v2/seed{0,1,2}_{val,test}.pt` (재사용 가능)
+- `checkpoint/ensemble_cache_mit_l14_v2/results.json`, `results_fine.json`
+- `logs/eval_ensemble_h2_h4_coarse.log`, `logs/eval_sweep_fine.log`
+
+### 17-7. Multi-ckpt × multi-seed ensemble 결과 — H2 ceiling 확정 (5-20 23:27 1차 crash, 5-21 18:09 재실행 → 18:31 종료)
+
+**1차 (5-20 23:27)**: `SEED_EPOCHS[2] = [15, 14, 11]`이었으나 `epoch_15.pt` 미존재 (train epochs=15는 0-indexed로 0..14 저장)으로 seed 2 ep 15 load 시 FileNotFoundError. seed 0/1 forward 결과만 캐시에 남고 종료.
+
+**2차 (5-21 18:09)**: `SEED_EPOCHS[2] = [14, 13, 11]` (trajectory 다음 best로 교체) 후 재실행. seed 0/1 cache hit, seed 2만 새로 forward. 총 22분.
+
+| cfg | TEST seen | unseen | **HM** | AUC | Δ vs baseline mean (0.3887) | Δ vs H2 top1 (0.3924) |
+|---|---|---|---|---|---|---|
+| M0 top1×3 seed (3 ckpts: s0e11, s1e13, s2e14) | 0.4916 | 0.5293 | **0.3921** | 0.2214 | +0.0034 | −0.0003 |
+| M1.5 top2×3 seed (6 ckpts) | 0.4903 | 0.5293 | **0.3906** | 0.2209 | +0.0019 | −0.0018 |
+| M2 full top3×3 seed (9 ckpts) | 0.4912 | 0.5301 | **0.3907** | 0.2213 | +0.0020 | −0.0017 |
+| M1 within-seed top3 (per seed) | s0 0.3861 / s1 0.3885 / s2 0.3885 | — | — | — | (각 단독 ckpt 평균) | — |
+
+**판정**:
+- M0 (3 ckpt) ≈ §17-4 H2 ensemble (0.3924) 거의 동치 — 작은 차이는 val_best.pt vs explicit epoch_*.pt selection 사이의 ckpt 약간 다름에 기인 (0.0003).
+- **6 ckpt / 9 ckpt 확장은 오히려 성능 하락** (M1.5 −0.0018, M2 −0.0017 vs H2 top1). 추가 epoch 평균이 regularization 과해 ensemble peak를 깎음. top epoch 외 epochs가 noise만 보탬.
+- 사전 등록 cutoff `+0.005 vs baseline mean` → 필요 HM ≥ 0.3937. **M0/M1.5/M2 모두 미달**.
+
+**H2 axis ceiling 확정**:
+- inference-time ckpt ensemble로 추출 가능한 신호는 H2 top1 (0.3924)에서 saturate. multi-epoch 확장은 dead.
+- mit-states / ViT-L/14 / `cluspro_baseline_l14_mit_v2` framework 한정 결론. UT-Zap이나 다른 framework에서는 다를 수 있음 (검증 X).
+
+**산출물**:
+- `scripts/eval_multi_ckpt.py` (D5 best_hm metric 기준, M0/M1/M1.5/M2 모두 평가)
+- `checkpoint/ensemble_cache_mit_l14_v2/results_multickpt.json`
+- `logs/eval_multi_ckpt_20260521_180954.log`
+
+### 17-8. Pivot 결정 — H1 (hard-pair contrastive) 진입 (5-21)
+
+§17-7로 H2 axis(no retrain cost ensemble) 봉인. SOTA(0.407)까지 Δ +0.0146 갭 남았고, §11-7에서 cheap yml-level H3 (paper hp probe) 이미 dead 확인 (HM −0.004), R2D2/imgsel/cosface 4 axis sealed. 남은 living 후보:
+
+| axis | 코드 작업 | retrain 시간 | 예상 gain | 평가 |
+|---|---|---|---|---|
+| **H1** hard-pair contrastive | model+train 100-200 LOC | 3-seed ~15h | +0.003 ~ +0.008 (CGE/SymNet 표준) | cheap engineering, bounded ceiling |
+| **H3** ClusPro 구조적 메커니즘 포팅 | OT(`local_assign`+`distributed_sinkhorn`) + CrossAttn + queue contrast, 300-500 LOC | retrain ~15h | paper §4.4 단일 최대 (+3.3 AUC) | 1-2주 엔지니어링, 통합 리스크 큼 |
+
+**결정: H1 먼저.**
+
+근거:
+- 시간-신호: 1-2일 코드 + 15h 학습 → ~3일 내 axis 생사 판정.
+- §16 (cosface) sealing 후 8 sealed axes 누적 — 다음 axis도 fail 가능성을 통계적으로 합리적으로 가정해야 함. 빠른 turnover가 EV 높음.
+- 사전 등록 cutoff +0.005 통과 시: stack with H2 (0.3924 baseline) → target 0.397+, paper 0.407까지 추가 0.010 갭 → H3로 진입 정당화.
+- 사전 등록 cutoff 미달 시: 9th sealed axis 추가. H3 OT 본격 진입 (남은 유일한 high-ceiling 후보).
+
+**H1 Design (v0.1)**:
+
+(A) **Dataset (이미 구현됨)**: `dataset.py:145-154, 218-226`이 `same_prim_sample=True`일 때 (same_attr/diff_obj img, same_obj/diff_attr img) 쌍을 batch에 자동 추가. anchor와 같은 attr이지만 obj 다른 이미지 + 같은 obj이지만 attr 다른 이미지. mask는 sampling 가능 여부 (training pair에 해당 pivot이 존재할 때만 True).
+
+(B) **Model change** (`model/cluspro_baseline.py:train_forward`):
+- batch[4..7], batch[9..12]에서 보조 이미지 unpack → encode_image → disentangler 통과 → f_attr_same, f_obj_same 등 추출.
+- Hard-pair contrastive loss: 
+  - `L_hard_attr = -log( exp(sim(f_attr_anchor, f_attr_same_attr)/τ) / Σ_neg exp(sim(f_attr_anchor, f_attr_neg)/τ) )` — same_attr 이미지가 positive (attr 공유), same_obj 이미지가 negative (attr 다름).
+  - `L_hard_obj`: 대칭.
+- Total: `loss += λ_hard * (L_hard_attr + L_hard_obj)`, τ=0.1, λ_hard ∈ {0.05, 0.1, 0.2} (D2 ablation 후보).
+
+(C) **Train.py change** (`train.py:160`): `same_prim_sample=config.same_prim_sample` 이미 통과. batch 길이 동적이라 model_factory의 dataloader collate 확인 필요.
+
+(D) **YML**: `config/cluspro_baseline_mit_l14_v2.yml` 복사 → `config/cluspro_baseline_mit_l14_v2_hardpair.yml`, `same_prim_sample: true` + `hard_pair_weight: 0.1` + `hard_pair_temperature: 0.1` 추가.
+
+(E) **사전 등록 판정**:
+- 1-seed probe (seed 0, ~5h): HM Δ ≥ +0.005 vs single-seed baseline (0.3879) → 3-seed 본런 + H2 stack.
+- HM Δ ∈ [−0.005, +0.005]: tie, ablation (λ_hard sweep: 0.05/0.1/0.2) 1-2회.
+- HM Δ < −0.005: dead, 봉인 → H3 OT 진입.
+
+**다음 액션**: 
+1. `model/cluspro_baseline.py`에 hard-pair branch 추가
+2. `dataset.py` mask 처리 확인 + collate 호환
+3. smoke test (1 epoch + 1 val) → loss curve check
+4. seed 0 본 학습 launch
+
+### 17-9. H1 구현 + smoke test + seed 0 launch — 5-21 18:37 KST
+
+**코드 변경**:
+- `parameters.py`: `--hard_pair_weight` (default 0.0), `--hard_pair_temperature` (default 0.1) 추가.
+- `model/cluspro_baseline.py:train_forward`: `len(batch) >= 14 and hard_pair_weight > 0`일 때 batch[4] (same_attr_img), batch[9] (same_obj_img) 같이 encode_image (3B concat → split). 각각 disentangler + projection 통과.
+- `model/cluspro_baseline.py:_hard_pair_loss`: InfoNCE 형식.
+  - L_attr: `anchor_attr_proj` ↔ `sa_attr_proj` positive, within-batch `so_attr_proj` (다른 attr) negatives.
+  - L_obj : `anchor_obj_proj` ↔ `so_obj_proj` positive, within-batch `sa_obj_proj` (다른 obj) negatives.
+  - mask로 sampling 실패 샘플 제외.
+- `loss_calu`: `predict` 6-tuple (loss_hard 포함), `loss += hard_pair_weight * loss_hard`.
+- `config/cluspro_baseline_mit_l14_v2_hardpair_seed0.yml` 신규: baseline yml 기반 + `same_prim_sample: true`, `hard_pair_weight: 0.1`, `hard_pair_temperature: 0.1`. 메모리 제약 (3× I/O → micro-batch 12)로 `train_batch_size: 4`, `gradient_accumulation_steps: 16` (effective bs 64 유지).
+
+**Smoke (5-21 18:37)**:
+- launch: pid 217696, log `logs/train_hardpair_mit_seed0_20260521_183706.log`
+- 첫 1분: loss finite (1.2), GPU 13.06 GiB, 2.6 it/s. OOM/NaN 없음.
+- 1 epoch ETA ~49분 (7585 step), 15 epoch ≈ **13h ETA**, 5-22 08:00 KST 종료 예상
+- val_metric=best_hm로 매 epoch val 후 val_best.pt 저장.
+
+**사전 등록 판정 (5-21 등록, 결과 5-22)**:
+- HM Δ ≥ +0.005 vs single-seed baseline 0.3879 → 0.3929 이상 → 3-seed 본런 launch + H2 stack 시도.
+- HM Δ ∈ [−0.005, +0.005] → tie, λ_hard sweep {0.05, 0.2} 1-2회.
+- HM Δ < −0.005 → 9th sealed axis 추가, H3 OT 본격 진입.
+

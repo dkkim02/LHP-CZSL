@@ -1977,3 +1977,123 @@ H2 +0.0037을 baseline의 새 reporting standard로 채택 (no retrain cost) + �
 - HM Δ ∈ [−0.005, +0.005] → tie, λ_hard sweep {0.05, 0.2} 1-2회.
 - HM Δ < −0.005 → 9th sealed axis 추가, H3 OT 본격 진입.
 
+### 17-10. H3 OT 코드 분석 — 포팅 비용 재추정 (5-21 18:50 KST, H1 학습 중 백그라운드)
+
+§11-2에서 "1-2주 엔지니어링" 추정했던 H3 OT 포팅을 H1 학습 도는 동안 공식 `cluspro_baseline.py` (root, 34KB, byte-identical to official ClusPro)를 다시 읽어 재추정함. **실제 변경 범위는 50-80 LOC 수준**으로 훨씬 작음.
+
+**핵심 발견 1: `local_assign`은 우리도 이미 갖고 있다 (`model/otgcc.py`)**
+- 공식 train_forward (line 698-725) `local_assign(batch_attr, init_q, top_percent=1)` 호출 → import 경로 `from .otgcc import *` (root cluspro_baseline.py:18).
+- 우리 `model/otgcc.py:7-38` 존재. 그러나 **softmax-only stripped 버전**. 진짜 Sinkhorn 없음.
+- 진짜 Sinkhorn 구현 (`distributed_sinkhorn`, line 163-187)은 root cluspro_baseline.py에 있으나 **호출처 없음** (dead code in official 파일). 즉 공식 ClusPro의 진짜 OT lever = `local_assign`이 Sinkhorn을 내부 호출하는 미공개 버전이었음. paper §4.4의 +3.3 AUC 기여가 여기서 옴.
+
+**핵심 발견 2: 우리 `_update_prototypes`와 공식 train_forward의 차이는 2가지뿐**
+
+| 항목 | 우리 (model/cluspro_baseline.py:246-262) | 공식 (cluspro_baseline.py:698-725) |
+|---|---|---|
+| Coupling 계산 범위 | 클래스 k 샘플만 (`feats_k = batch_attr_f[mask]`) | **전체 batch** (`init_q = attr_masks[..., k]`) over B 샘플 |
+| Coupling 분포 | `F.softmax(sim / 0.5)` row-wise softmax | `local_assign(...)` → Sinkhorn double-stochastic balance |
+| Hard assign | `F.gumbel_softmax(couplings, tau=0.5, hard=True)` | 동일 |
+| EMA prototype update | 동일 (`queue * μ + new_proto * (1-μ)`) | 동일 |
+| attr_labels 생성 | 별도 패스 `_get_cluster_labels` | 같은 루프에서 `indexs[attr_idx==k] + cluter_num*k` |
+
+→ **Sinkhorn(전체 batch)이 핵심**. 단일 클래스의 B_k = 1~3 샘플로는 marginal balance 의미 없음. 전체 B=64 위에서 cluster usage 균형을 강제할 때 prototype collapse 방지 + soft assignment 정보 보존이 동시 성립.
+
+**핵심 발견 3: §11-2에서 우려했던 다른 메커니즘들은 실제 train_forward에서 안 쓰임**
+
+| 메커니즘 | 정의 위치 | 공식 train_forward (664-820) 호출 | 결론 |
+|---|---|---|---|
+| `CrossAttentionLayer` + `MulitHeadAttention` | line 110-162 | **호출 없음** (`cross_attn`로 grep) | dead code |
+| `pos_neg`, `_sample_negative` | line 611-661 | **호출 없음** | dead code |
+| `_dequeue_and_enqueue` | line 630-646 | 호출 있음 (line 806-807) BUT `self.attr_queue` (2D 샘플 queue)는 어디서도 loss에 안 들어감 | dead 업데이트 |
+| `self.attr_queue` 2D | line 392 | line 787-793에서 projection 계산되지만 어디에도 안 쓰임 | dead code |
+| `distributed_sinkhorn` standalone | line 163-187 | 호출 없음 | dead code (그러나 우리가 `local_assign`에 이식해야 할 알고리즘) |
+| `entropic_COT_*` | line 188-314 | 호출 없음 | dead code |
+| `loss_contrastive` 구성 | line 800-803 | 사용. `featattr_memory_con1 = [attr_protos, obj_protos]` concat을 negative로 nceloss. obj prototypes를 attr nceloss의 추가 negative로 mixing. | 우리 nceloss는 `all_protos_flat = [attr_protos; obj_protos]`로 이미 같음 (model/cluspro_baseline.py:326-329). 동치. |
+
+§11-2 (1)에서 "구조적 메커니즘 누락"이라 한 항목 중 **실제로 train_forward 신호 경로에 들어가는 것은 `local_assign`의 OT 부분 하나뿐**. 나머지는 공식 코드의 vestigial.
+
+**포팅 plan (LOC 추정 60-80)**
+
+1. **`model/otgcc.py` 재작성** (~30 LOC):
+   - `local_assign_ot(features, similarity_scores, sinkhorn_iters=3, epsilon=0.05, top_percent=1.0)` 신규 또는 기존 `local_assign` 교체.
+   - 본체: `distributed_sinkhorn` 알고리즘을 (B, K) coupling matrix에 적용.
+     ```python
+     L = torch.exp(similarity_scores / epsilon).t()  # K x B
+     L /= L.sum()
+     for _ in range(sinkhorn_iters):
+         L /= L.sum(dim=1, keepdim=True); L /= K
+         L /= L.sum(dim=0, keepdim=True); L /= B
+     L *= B
+     return L.t(), selected_mask  # (B, K)
+     ```
+   - top_percent gate (필요 시 high-confidence 샘플만 사용).
+   - Backward compat: default behavior로 softmax 유지 옵션 + `use_ot=True` flag.
+
+2. **`model/cluspro_baseline.py:_update_prototypes` 재구조화** (~30-40 LOC):
+   - 현재: 클래스 k 루프 안에서 `feats_k = batch_attr_f[mask]` (subset) → sim → softmax → gumbel.
+   - 변경: 루프 밖에서 `attr_protos_all = [attr_queue0..N]` `(num_attrs, cluster_num, D)` 구성 → `attr_masks = einsum('bd, kmd -> bmk', batch_attr_norm, attr_protos_all_norm)` `(B, cluster_num, num_attrs)`.
+   - 루프 안: `init_q = attr_masks[..., k]` `(B, cluster_num)` → `local_assign_ot(batch_attr.detach(), init_q.detach())` → Sinkhorn 균형 couplings → gumbel hard assign → `q[attr_idx==k]` subset → EMA proto update.
+   - attr_labels도 같은 루프에서 채움 (별도 `_get_cluster_labels` 호출 제거 가능, 또는 보존).
+   - obj 측 대칭.
+
+3. **config flag** (~5 LOC):
+   - `--use_ot_assignment` (bool, default False) `parameters.py`에 추가.
+   - yml에 `use_ot_assignment: true` 토글.
+
+4. **새 config** (~동일 yml 1개):
+   - `config/cluspro_baseline_mit_l14_v2_ot_seed0.yml` — baseline 기반 + `use_ot_assignment: true`.
+
+5. **Sanity gate (사전 등록)**:
+   - `use_ot_assignment=False`로 학습 → baseline HM 0.3879 ± 0.0008 안에 들어와야 통합 정상.
+   - `use_ot_assignment=True` seed 0 → HM Δ ≥ +0.005 vs 0.3879 → 0.3929 이상 → 3-seed 본런 + paper 0.407 대비 갭 측정.
+   - HM Δ ∈ [−0.005, +0.005] → ε ∈ {0.03, 0.1}, sinkhorn_iters ∈ {3, 10} 4-cell ablation.
+   - HM Δ < −0.005 → paper §4.4 ablation과 모순. ε/iter 한 번 확장 후에도 음이면 sealing (10th).
+
+**실제 코딩 작업 일정**:
+- H1 학습 13h (5-22 08:00 KST 종료) 동안 design 확정 + LOC budgeting 끝.
+- H1 결과가 negative 면 H3 OT 본격 코딩 진입. 코딩 + smoke ~6h, 15 epoch retrain ~6h (baseline 속도, same_prim_sample 없음) → 5-23 늦은 오후 결과.
+- H1 결과가 positive면 H3 OT는 H1 후속(3-seed 본런 + H2 stack) 이후 별도 axis로 진입.
+
+**리스크**:
+- Sinkhorn ε=0.05 hyperparam이 우리 batch=8, cluster_num=5 setup에 맞는지 검증 필요. 너무 작으면 mode collapse (one-hot 수렴), 너무 크면 uniform (정보 손실).
+- AMP autocast 안에서 Sinkhorn 안정성 (이미 우리 `_update_prototypes`는 `@torch.autocast(..., enabled=False)`로 float32 강제하고 있음 — Sinkhorn도 같은 보호 받음).
+- top_percent < 1.0 사용 시 어떤 confidence 기준으로 cutoff할지. 일단 1.0으로 시작.
+
+### 17-11. H1 seed 0 학습 종료 — tie band 음의 가장자리, 사실상 fail (5-21 18:37 → 5-22 07:23 KST, 약 12h46m)
+
+**최종 TEST 결과 (val_best.pt @ ep14)**:
+- best_seen 0.4815 | best_unseen 0.5225 | **best_hm 0.383** | AUC 0.2137 | attr_acc 0.3878 | obj_acc 0.5575
+- 정상 종료 (Traceback/OOM/NaN 없음).
+
+**VAL trajectory (epoch 1 → 15)**:
+- ep1 0.3687 → ep2 0.3907 → ep3 0.3956 → ep4 0.4021 → ep5 0.4057 → ep6 0.4112 → ep7 0.4111 → ep8 0.4126 → ep9 0.4148 → ep10 0.4169 → ep11 0.4188 → ep12 0.4189 → ep13 0.4193 → **ep14 peak 0.4225** → ep15 0.4175
+- val_metric=best_hm로 ep14에서 val_best.pt 저장됨.
+
+**판정 (사전 등록 §17-9 기준, single-seed baseline 0.3879 대비)**:
+- Δ HM = 0.383 − 0.3879 = **−0.0049**
+- cutoff `< −0.005`까지 **0.0001 부족**. 명목상 [−0.005, +0.005] tie band 진입.
+- baseline std ±0.0008 고려 시 베이스라인 동일 ~ 약간 손해. positive 신호 없음.
+
+**핵심 관찰 — val/test divergence 확대**:
+- val peak 0.4225 vs test 0.383 → val→test gap **0.0395**.
+- 베이스라인 단일 시드 val→test gap ≈ 0.032 (§17 영역) → hardpair에서 +0.008 확대.
+- 이는 hard-pair contrastive 신호가 training/val에서 같은-attr/같은-obj 쌍의 분리를 잘 학습하지만 test pair (unseen comp)로 일반화 안 됨을 시사. attr 표현이 batch 내 hard negative에 과적합되어 unseen attr-obj 조합의 attr 일반화 약화.
+
+**Pre-registered next step**:
+- tie band 형식 충족 → λ_hard ∈ {0.05, 0.2} 1-2 cell ablation 의무.
+- BUT val/test gap 확대가 mechanism-level 우려 신호 → λ만 바꿔도 같은 패턴 반복할 가능성 큼.
+
+**결정 (5-22 사용자 승인)**: λ_hard sweep skip, **H1 = 9th sealed axis로 즉시 봉인**, H3 OT 본격 진입.
+- 근거: val→test gap +0.008 확대는 mechanism-level 결함 (hard negative overfitting). λ 줄여도 같은 메커니즘이 약해진 채 잔존할 뿐 일반화 결함 자체는 안 사라짐. EV < cost.
+- 9th sealed axes 누적: R2D2, imgsel, cosface, v3_text, vision_distill, image_cond, ckpt-ensemble (multi-epoch 확장), feasibility, **hardpair**.
+- 남은 living axis: **H3 OT (last high-ceiling 후보)**. fail 시 framework 전환 검토 단계 진입.
+
+**산출물**:
+- checkpoint: `checkpoint/cluspro_baseline_l14_mit_v2_hardpair_seed0/val_best.pt` (epoch 14)
+- log: `logs/train_hardpair_mit_seed0_20260521_183706.log` (21MB, CR 진행률 포함)
+- config: `config/cluspro_baseline_mit_l14_v2_hardpair_seed0.yml`
+
+**SOTA 갭 (변동 없음)**:
+- 우리 최고: H2 ensemble 0.3924 (§17-4). H1 seed 0 단독 0.383은 그 아래.
+- ClusPro paper 0.407까지 Δ +0.0146 갭. H1으로 못 메움. H3 OT가 남은 유일한 high-ceiling 후보.
+

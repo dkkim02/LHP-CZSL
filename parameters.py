@@ -56,6 +56,9 @@ parser.add_argument("--obj_inference_weight", type=float, default=1.0)
 parser.add_argument("--cosface_margin", help="CosFace additive cosine margin on comp/attr/obj heads (§16). 0 disables.", type=float, default=0.0)
 parser.add_argument("--hard_pair_weight", help="H1 hard-pair InfoNCE loss weight (§17-8). 0 disables.", type=float, default=0.0)
 parser.add_argument("--hard_pair_temperature", help="H1 hard-pair InfoNCE temperature.", type=float, default=0.1)
+parser.add_argument("--use_ot_assignment", help="H3 (§17-10): Sinkhorn-balanced batch-level coupling for prototype update.", action="store_true")
+parser.add_argument("--sinkhorn_epsilon", help="H3 Sinkhorn entropic regularization.", type=float, default=0.05)
+parser.add_argument("--sinkhorn_iters", help="H3 Sinkhorn iterations.", type=int, default=3)
 
 # MSCI + VAPS + DHNO
 parser.add_argument("--use_vaps", help="enable VAPS (Visual-Adaptive Prompt Shifting)", type=bool, default=True)

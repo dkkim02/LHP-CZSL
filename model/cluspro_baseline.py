@@ -240,6 +240,13 @@ class ClusProBaseline(nn.Module):
         if not (torch.isfinite(batch_attr_f).all() and torch.isfinite(batch_obj_f).all()):
             return
 
+        if bool(getattr(self.config, 'use_ot_assignment', False)):
+            eps = float(getattr(self.config, 'sinkhorn_epsilon', 0.05))
+            iters = int(getattr(self.config, 'sinkhorn_iters', 3))
+            self._update_prototypes_ot(batch_attr_f, attr_idx, "attr", self.attributes, eps, iters)
+            self._update_prototypes_ot(batch_obj_f, obj_idx, "obj", self.classes, eps, iters)
+            return
+
         # Hard one-hot cluster assignment (matches official ClusPro train_forward, ICLR 2025)
         # Soft softmax assignment (previous version) collapses prototypes since every sample
         # contributes to every cluster — see RESEARCH_LOG §5.3.
@@ -274,6 +281,47 @@ class ClusProBaseline(nn.Module):
             new_proto = assign.t() @ feats_k
             counts = assign.sum(dim=0)
             valid = counts > 0
+            if valid.any():
+                new_proto[valid] = l2_normalize(new_proto[valid])
+                queue_f[valid] = queue_f[valid] * self.momentum + new_proto[valid] * (1 - self.momentum)
+            queue_k.copy_(l2_normalize(queue_f).to(queue_k.dtype))
+
+    @torch.no_grad()
+    @torch.autocast(device_type='cuda', enabled=False)
+    def _update_prototypes_ot(self, batch_feat_f, idx, prim_type, primitives, eps, iters):
+        # §17-10 H3: full-batch Sinkhorn coupling, then per-class subset for EMA update.
+        # Matches official ClusPro train_forward (root cluspro_baseline.py:692-725):
+        # init_q computed over ALL B samples (not per-class subset) so Sinkhorn balance
+        # is meaningful, then gumbel hard assign, then restrict to samples with attr/obj == k.
+        from model.otgcc import local_assign_ot
+
+        all_protos = torch.stack(
+            [getattr(self, f"{prim_type}_queue{k}").float() for k in range(len(primitives))],
+            dim=0,
+        )  # (num_prim, cluster_num, D)
+        all_protos_n = l2_normalize(all_protos)
+        batch_n = l2_normalize(batch_feat_f)
+        # masks[b, m, k] = sim(sample b, prototype m of class k)
+        masks = torch.einsum('bd,kmd->bmk', batch_n, all_protos_n)
+
+        for k in range(len(primitives)):
+            init_q = masks[..., k]  # (B, cluster_num)
+            couplings, _ = local_assign_ot(
+                batch_feat_f.detach(), init_q.detach(),
+                sinkhorn_iters=iters, epsilon=eps, top_percent=1.0,
+            )
+            couplings = couplings.float()
+            q = F.gumbel_softmax(couplings, tau=0.5, hard=True, dim=-1)  # (B, cluster_num)
+            sel = (idx == k)
+            if sel.sum() == 0:
+                continue
+            q_k = q[sel]
+            feats_k = batch_feat_f[sel]
+            new_proto = q_k.t() @ feats_k  # (cluster_num, D)
+            counts = q_k.sum(dim=0)
+            valid = counts > 0
+            queue_k = getattr(self, f"{prim_type}_queue{k}")
+            queue_f = queue_k.float()
             if valid.any():
                 new_proto[valid] = l2_normalize(new_proto[valid])
                 queue_f[valid] = queue_f[valid] * self.momentum + new_proto[valid] * (1 - self.momentum)

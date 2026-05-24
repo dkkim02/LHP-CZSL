@@ -1,0 +1,16 @@
+{
+  "key": "leather__shoes loafers",
+  "type": "composition",
+  "label": "leather shoes loafers",
+  "K": 8,
+  "prompts": [
+    "A pair of supple leather loafers with polished edges catching the light.",
+    "Vintage leather loafers worn smooth by years of soft, gentle use.",
+    "Leather loafers in rich tones, their crevices filled with decades of patina.",
+    "Soft leather loafers in bold colors standing out from the crowd.",
+    "Elegant leather loafers with intricate stitching that tells a story.",
+    "Leather loafers with a subtle distressed look, adding character.",
+    "Radiant leather loafers gleaming under every angle of sunlight.",
+    "Weathered leather loafers showcasing the craftsmanship that ages gracefully."
+  ]
+}

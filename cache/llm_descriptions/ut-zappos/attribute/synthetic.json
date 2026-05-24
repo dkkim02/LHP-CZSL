@@ -1,0 +1,16 @@
+{
+  "key": "synthetic",
+  "type": "attribute",
+  "label": "synthetic",
+  "K": 8,
+  "prompts": [
+    "A plastic ruler with a smooth, clear surface that lacks any natural grain or texture.",
+    "An acrylic vase whose translucency allows light to pass through in bright, artificial hues.",
+    "A synthetic fur coat with a uniform, man-made pelt that does not shed naturally.",
+    "A faux leather handbag featuring a sleek, glossy finish that mimics genuine leather's tactile feel without the animal byproduct.",
+    "A synthetic polymer watch strap that is both flexible and durable, never breaking or wearing down over time.",
+    "A plastic flower pot with a white, rigid body that does not absorb moisture like a terracotta one would.",
+    "A polyester shirt with a vibrant color that pops from the synthetic fibers, showing no dye bleeding.",
+    "A synthetic rubber tire with a hard, shiny tread pattern that maintains its shape and grip regardless of environmental factors."
+  ]
+}

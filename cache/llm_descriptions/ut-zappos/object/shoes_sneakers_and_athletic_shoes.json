@@ -1,0 +1,16 @@
+{
+  "key": "shoes sneakers and athletic shoes",
+  "type": "object",
+  "label": "shoes sneakers and athletic shoes",
+  "K": 8,
+  "prompts": [
+    "A pair of sleek black sneakers glinting under an afternoon sunlit park bench.",
+    "Sneakers in vibrant tropical prints contrast vividly against a backdrop of lush greenery.",
+    "Softly lit indoor display shows off a variety of athletic shoes with intricate designs.",
+    "A lone pair of vintage white tennis sneakers stands out amidst colorful autumn leaves.",
+    "Athletic shoes with bold color blocks catch beams of moonlight on a deserted beach.",
+    "In a bustling city street market, vibrant red sneakers stand out among the stalls.",
+    "An athlete proudly wears a pair of lightweight grey running sneakers during early morning jog.",
+    "A close-up shot highlights the intricate details of a minimalist gray sneaker on a plain white surface."
+  ]
+}

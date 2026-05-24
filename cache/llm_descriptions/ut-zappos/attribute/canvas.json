@@ -1,0 +1,16 @@
+{
+  "key": "canvas",
+  "type": "attribute",
+  "label": "canvas",
+  "K": 8,
+  "prompts": [
+    "A deep-sea canvas painted with iridescent blues and greens under the moonlit water.",
+    "A canvas of stars stretching across midnight, each a tiny point of light.",
+    "A canvas of cracked earth glistening in morning dew before dawn.",
+    "A canvas of waves, white and frothy, against the horizon's edge at sunset.",
+    "A canvas of shadows dancing across an ancient stone temple during dusk.",
+    "A canvas of fire, orange and red, spreading slowly across the sky at nightfall.",
+    "A canvas of lush green vines creeping up a castle wall under the hot sun.",
+    "A canvas of emerald leaves in perfect symmetry, reflecting sunlight."
+  ]
+}

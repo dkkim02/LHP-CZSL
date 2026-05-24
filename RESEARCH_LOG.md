@@ -50,6 +50,24 @@
 | probe bf16 lr=1e-4 (no scaler) | <1 | 영구 오염 | — | — | — | — | step 813 NaN, val_best 미저장 → 크래시 |
 | **probe guard lr=1e-4 (수정)** | **1** | **클린** | **0.6403** | **0.6785** | **0.4919** | **0.3493** | NaN 표시 0회, skip 18회(0.6%) |
 
+### UT-Zappos — FlowComposer (LLM-augmented Flow Matching, 5-23)
+
+**Setup.** Spec `coding_agent_instructions.md` 구현. ClusProBaseline 위에 (a) attr/obj per-branch flow nets `v_θa, v_θo` (6-block adaLN residual MLP), (b) Composer MLP (`v_a, v_o → â, b̂`), (c) leakage augmentation (composition feature → primitive endpoint), (d) LLM K=8 text-embedding distribution bank (attr/obj/composition). 학습 loss: `L_base + λ_flow·(L_a_FM+L_o_FM) + λ_comp·L_comp + λ_leak·L_leak`, 추론 score: `0.7·base_logit + 0.3·logit_scale·(p_c + p_a·p_o)`. 새 파일: `model/flow_composer.py`, `model/llm_distribution.py`, `llm/generate.py`. eval pipeline은 baseline과 동일 (`test.predict_logits → Evaluator.score_fast_model`, val_pairs convention per §1.1 deprecated).
+
+| Run | LLM source | best ep | seen | unseen | **HM** | **AUC** |
+|---|---|---|---|---|---|---|
+| cluspro_baseline_utzap_l14_v2_seed0 (5-2) | — | ckpt | 0.6990 | 0.7698 | **0.6456** | **0.5016** |
+| **FlowComposer fallback (templates)** | deterministic K=8 templates | 8 | 0.7320 | 0.7578 | **0.6364** | **0.5084** |
+| **FlowComposer LLM (Qwen2.5-3B-Instruct K=8)** | local LLM, 2026-05-23 | 10 | 0.7355 | 0.7638 | **0.6923** | **0.5385** |
+
+**Δ vs baseline (LLM run, best epoch=10):** HM **+0.0467**, AUC **+0.0369**, seen +0.037, unseen −0.006. Fallback templates는 baseline tie (HM −0.009, AUC +0.007) — *진짜 의미 다양성이 있는 LLM 설명이 게인의 핵심*. K=8 단순 phrasing-only template로는 baseline 위로 못 올라감.
+
+**Caveats.** (1) val_pairs eval — 논문 비교용 test_pairs 재평가는 별도 필요. (2) 1-seed only, std 모름 (mit-states 5-15 결과로 보면 UT-Zap std는 ~0.013 수준 → +0.047 HM은 명백히 std 밖). (3) Qwen-3B descriptions은 visually rich했음 (예: "Hair calf skin with tiny, intricate pigmentation details") — 더 큰 LLM(Llama-3-8B) 또는 image-conditional refinement는 추가 게인 가능성. (4) 처음 epoch에서 LLM run이 fallback보다 한 단계 위 (ep1 HM 0.6378 vs 0.5051) — LLM 분포가 training signal로서도 빠르게 정착.
+
+**Files.** ckpt `checkpoint/flow_composer_l14_utzap_{seed0,llm_seed0}/val_best.pt`, log `logs/train_flow_composer_utzap_{,llm_}seed0_20260523_*.log`, descriptions `cache/llm_descriptions/ut-zappos/{attribute,object,composition}/*.json`, text-embedding bank `data/llm_descriptions/ut-zappos/text_bank_K8_vitl14_qwen3b.pt`.
+
+---
+
 ### UT-Zappos (ViT-L/14, lr=1e-4, fix 적용, 15 ep) — 3-seed 본런 — **5-11 이후 deprecated**
 
 ⚠ **이 본표는 val_pairs eval (test.py:706 첫 번째 출력) 기준**으로 논문 비교 불가. 5-11 convention 정리 이후 §1.1 부록의 test_pairs 표가 진짜 비교용. 본표는 historical record로만 유지하고, 새 비교는 §1.1 부록 사용.

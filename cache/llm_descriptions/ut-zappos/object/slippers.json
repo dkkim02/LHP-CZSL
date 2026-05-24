@@ -1,0 +1,16 @@
+{
+  "key": "slippers",
+  "type": "object",
+  "label": "slippers",
+  "K": 8,
+  "prompts": [
+    "Soft velvet slippers nestled under a fluffy white throw in a cozy bedroom.",
+    "Stylish slipper crouching amidst colorful blooms on a sunlit balcony.",
+    "Vintage lace-up slippers peeking out from beneath a patchwork quilt.",
+    "Glossy patent leather slippers standing alone by a marble fireplace.",
+    "Chunky knit slippers adorned with tiny beads beside a roaring fire.",
+    "Shimmering silver slippers lying next to an elegant crystal vase.",
+    "Terry cloth slippers peeking out from behind a lush green bamboo curtain.",
+    "Sparkling sequined slippers placed gently atop a luxurious velvet ottoman."
+  ]
+}

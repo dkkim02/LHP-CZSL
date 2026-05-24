@@ -1,0 +1,16 @@
+{
+  "key": "leather__sandals",
+  "type": "composition",
+  "label": "leather sandals",
+  "K": 8,
+  "prompts": [
+    "A pair of supple brown leather sandals with subtle stitching and a thin strap across the instep.",
+    "Vintage tan leather sandals adorned with small buckles at the ankle, offering a touch of elegance.",
+    "Elegant black leather sandals featuring a sleek low-profile design and a comfortable rubber sole.",
+    "Rich burgundy leather sandals with elegant toes and delicate straps crossing over the arch.",
+    "Earthy green suede sandals with braided accents, adding a boho-chic twist to the classic design.",
+    "Soft cream leather sandals with a stylish pointed toe and minimalistic yet stylish heel.",
+    "Boldly patterned red leather sandals with an embossed texture, exuding bold fashion statement.",
+    "Silky white leather sandals with a modern, minimalist silhouette and a slight heel for added height."
+  ]
+}

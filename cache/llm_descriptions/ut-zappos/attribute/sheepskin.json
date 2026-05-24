@@ -1,0 +1,16 @@
+{
+  "key": "sheepskin",
+  "type": "attribute",
+  "label": "sheepskin",
+  "K": 8,
+  "prompts": [
+    "Soft, plush texture with tiny, uniform fur-like tufts covering its surface",
+    "Velvet-like grip and luxurious feel, reminiscent of downy clouds",
+    "Smooth surface underfoot, with a slight texture that catches light in an iridescent manner",
+    "Heavily lined with thick, soft hairs, creating a cushiony warmth to the touch",
+    "A dense, velvety pile that feels both heavy and surprisingly lightweight at the same time",
+    "Reflective, almost mirror-like quality when polished, showing off the fine details of its weave",
+    "A tactile experience akin to walking on a bed of fine, silken hair",
+    "Glistening under different angles, revealing a rich, deep coloration that blends seamlessly"
+  ]
+}

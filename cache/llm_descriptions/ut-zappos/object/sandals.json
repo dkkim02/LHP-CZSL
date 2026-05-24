@@ -1,0 +1,16 @@
+{
+  "key": "sandals",
+  "type": "object",
+  "label": "sandals",
+  "K": 8,
+  "prompts": [
+    "Soft hues of worn leather, subtly stained by sun-kissed days.",
+    "Patterns dance across polished wood in the dappled shade of leafy branches.",
+    "Straps glide smoothly over toes set against cool sand under a clear sky.",
+    "Crimson soles catch the evening glow, reflected off rippling water.",
+    "Metallic accents gleam in the afternoon sunlight, catching stray beams.",
+    "Vintage sandals rest atop the rugged stones of a forgotten pier.",
+    "Shimmering beads of dew roll down the straps as moonlight filters through.",
+    "A pair of minimalist sandals sit atop a pile of neatly folded towels."
+  ]
+}

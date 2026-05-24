@@ -1,0 +1,16 @@
+{
+  "key": "wool",
+  "type": "attribute",
+  "label": "wool",
+  "K": 8,
+  "prompts": [
+    "Soft, fuzzy texture cradled in each strand.",
+    "Rich, earthy tones that blend seamlessly.",
+    "Fine, silver strands caught in a close-up.",
+    "Shiny, lustrous fibers glistening under light.",
+    "Velvet-like surface with subtle texture.",
+    "Varied hues and textures within the same piece.",
+    "Dense, dense pile forming a cozy texture.",
+    "Graceful, flowing strands creating a textured backdrop."
+  ]
+}

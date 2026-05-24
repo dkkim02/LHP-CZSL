@@ -1,0 +1,16 @@
+{
+  "key": "satin",
+  "type": "attribute",
+  "label": "satin",
+  "K": 8,
+  "prompts": [
+    "Satin-like surface with a deep, velvety sheen reflecting light in intricate patterns.",
+    "Smooth satin finish glistens under soft evening light, casting subtle shadows.",
+    "A metallic object exhibits a mirror-smooth satin sheen that catches every angle.",
+    "The silky satin fabric feels smooth to the touch, yet looks luxurious with its luster.",
+    "Polished metal surfaces have an almost imperceptible satin sheen that hints at shine.",
+    "Glass objects display a satin finish that is both clear and diffused, hiding fingerprints.",
+    "Wood veneer showcases a fine satin texture that adds warmth without sacrificing modernity.",
+    "Ceramic pottery has a matte satin appearance, blending colors seamlessly across the piece."
+  ]
+}

@@ -1,0 +1,16 @@
+{
+  "key": "leather",
+  "type": "attribute",
+  "label": "leather",
+  "K": 8,
+  "prompts": [
+    "Smooth, supple leather with a natural grain texture on the side of a briefcase.",
+    "Hand-stitched leather, displaying rich, dark brown hues and subtle imperfections on the handle of a suitcase.",
+    "Soft, buttery leather with a slight sheen on the interior lining of a classic wallet.",
+    "Earthy-toned, cracked leather edges of an antique leather chair seat.",
+    "Rich, marbled patterns in a vintage saddle leather belt, worn but well-loved.",
+    "Rich, deep leather with a pronounced grain structure on the top surface of a vintage briefcase.",
+    "Luxuriously textured leather on the cover of a leather-bound journal, showing off its craftsmanship.",
+    "Leatherette, though not genuine leather, mimics the look of genuine leather with a smooth, glossy finish on the exterior of a laptop case."
+  ]
+}

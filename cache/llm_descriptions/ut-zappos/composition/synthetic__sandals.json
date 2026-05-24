@@ -1,0 +1,16 @@
+{
+  "key": "synthetic__sandals",
+  "type": "composition",
+  "label": "synthetic sandals",
+  "K": 8,
+  "prompts": [
+    "Synthetic sandals with intricate geometric patterns in vibrant hues.",
+    "Strappy synthetic sandals adorned with sequins and metallic accents.",
+    "Luxurious synthetic sandals featuring a smooth leather-like finish.",
+    "Elegant synthetic sandals made from lightweight, flexible material.",
+    "Sporty synthetic sandals with bold, colorful designs for added flair.",
+    "Minimalist synthetic sandals in sleek, monochrome designs for understated elegance.",
+    "Classic synthetic sandals with comfortable, cushioned soles and breathable toe slots.",
+    "Casual synthetic sandals with chunky, textured soles and a rugged aesthetic."
+  ]
+}

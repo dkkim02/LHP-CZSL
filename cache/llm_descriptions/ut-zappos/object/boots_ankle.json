@@ -1,0 +1,16 @@
+{
+  "key": "boots ankle",
+  "type": "object",
+  "label": "boots ankle",
+  "K": 8,
+  "prompts": [
+    "A rugged boot ankle standing in an untended field under twilight skies.",
+    "Dappled sunlight filters through leaves, casting shadows on a worn boot ankle by a serene lake.",
+    "A polished boot ankle glistens in a bustling city square, caught mid-stride.",
+    "In the shadowed corner of a rustic cabin, an old boot ankle hangs from a peg.",
+    "A bare boot ankle catches the moonlight on a mountain path at dawn.",
+    "Soft leather contrasts with sharp angles of a modern, sleek boot ankle against a cityscape.",
+    "Anchored on the shore, a sturdy boot ankle rests beside waves of an autumn beach.",
+    "A delicate boot ankle dances in a burst of morning dew beneath a cherry tree."
+  ]
+}

@@ -174,6 +174,13 @@ if __name__ == "__main__":
     offset = len(attributes)
 
     model = get_model(config, attributes=attributes, classes=classes, offset=offset).cuda()
+
+    # FlowComposer: precompute LLM text-embedding bank covering all closed-world pairs.
+    if getattr(config, "model_name", "") == "flow_composer":
+        # Pairs are (attr_str, obj_str) — gather train+val+test for closed-world coverage.
+        all_pairs = list({p for ds in (train_dataset, val_dataset, test_dataset) for p in ds.pairs})
+        model.attach_pairs(all_pairs)
+
     optimizer = get_optimizer(model, config)
 
     os.makedirs(config.save_path, exist_ok=True)

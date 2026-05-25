@@ -639,6 +639,17 @@ if __name__ == "__main__":
     model = get_model(config, attributes=attributes, classes=classes, offset=offset).cuda()
     if config.load_model:
         model.load_state_dict(torch.load(config.load_model))
+    # FlowComposer: build LLM bank covering all closed-world pairs (matches train.py)
+    if getattr(config, "model_name", "") == "flow_composer":
+        test_ds_tmp = CompositionDataset(dataset_path, phase='test',
+                                         split='compositional-split-natural',
+                                         open_world=config.open_world)
+        train_ds_tmp = CompositionDataset(dataset_path, phase='train',
+                                          split='compositional-split-natural',
+                                          open_world=config.open_world)
+        all_pairs = list({p for ds in (train_ds_tmp, val_dataset, test_ds_tmp) for p in ds.pairs})
+        model.attach_pairs(all_pairs)
+        del test_ds_tmp, train_ds_tmp
     predict_logits_func = predict_logits
     # ? can be deleted if not needed
     if (hasattr(config, 'text_first') and config.text_first

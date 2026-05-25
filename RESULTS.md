@@ -68,7 +68,35 @@
 
 ---
 
-## 3. UT-Zappos — FlowComposer (LLM-augmented Flow Matching, 5-23)
+## 3a. UT-Zappos FlowComposer — test_pairs 재평가 (논문 비교용, 5-24)
+
+`test.py --load_model val_best.pt --open_world False`로 재평가. 비교 기준: cluspro_baseline seed 0 test_pairs HM 0.5296 / AUC 0.4042 (§2 표).
+
+| Run | best ckpt | seen | unseen | hm_seen | hm_unseen | **HM** | **AUC** |
+|---|---|---|---|---|---|---|---|
+| cluspro_baseline_seed0 | val_best | 0.6647 | 0.7499 | — | — | **0.5296** | **0.4042** |
+| **FlowComposer fallback** (templates) | ep 8 | 0.6559 | 0.7240 | 0.5660 | 0.6113 | **0.5878** | **0.4350** |
+| **FlowComposer LLM** (Qwen2.5-3B K=8) | ep 10 | 0.6481 | 0.7166 | 0.2864 | 0.5315 | **0.3722** | **0.2819** |
+
+**Δ vs baseline:**
+- Fallback: HM **+0.0582**, AUC **+0.0308** — *Flow Matching + Composer 구조 자체가 효과 있음*
+- LLM: HM **−0.1574**, AUC **−0.1223** — *val_pairs에서 +0.047이었던 게 test_pairs에서 완전히 뒤집힘*
+
+**LLM run의 실패 분석:**
+- val_pairs HM 0.6923 (best) → test_pairs HM 0.3722 (Δ −0.32)
+- test_pairs best_seen 0.6481, best_unseen 0.7166 — 단일 axis 정확도는 정상
+- 하지만 HM-maximizing bias에서 hm_seen이 **0.2864**로 붕괴 → seen-unseen trade-off curve가 비대칭
+- 해석: val pair distribution에 overfit한 ckpt가 test pair에서 calibration 실패. LLM-aug bank가 (val에 있던) 특정 prompt 분포를 학습 신호로 강하게 흡수해서 test의 다른 unseen pair에서 잘 안 맞음
+- §1.1 convention 경고가 정확히 실현됨 — val_pairs 신호는 신뢰 불가
+
+**결론.**
+- Flow Matching + Composer architecture는 baseline 위로 가는 게 **확인됨** (fallback도 +0.058 HM)
+- LLM K=8 의미 다양성은 val에선 도움, test에선 해롭 — *현재 형태로는 generalization 손상*
+- 다음 시도: (1) LLM bank를 더 약하게 사용 (`flow_blend` 0.9), (2) val_best 대신 다른 epoch ckpt, (3) Mit-states에서 같은 패턴 재현되는지 확인
+
+---
+
+## 3b. UT-Zappos FlowComposer — val_pairs (학습 dev signal, 5-23)
 
 **Setup.** Spec `coding_agent_instructions.md` 구현. ClusProBaseline 위에:
 - (a) attr/obj per-branch flow nets `v_θa, v_θo` (6-block adaLN residual MLP)

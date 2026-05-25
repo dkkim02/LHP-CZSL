@@ -81,6 +81,8 @@ class LLMDistributionBank:
         self.attr2idx = {a: i for i, a in enumerate(self.attributes)}
         self.obj2idx = {o: i for i, o in enumerate(self.objects)}
         self.pair2idx = {p: i for i, p in enumerate(self.pairs)}
+        self._pair_lookup = {(self.attr2idx[a], self.obj2idx[o]): i
+                             for i, (a, o) in enumerate(self.pairs)}
 
         if cache_path and os.path.exists(cache_path):
             blob = torch.load(cache_path, map_location=device)

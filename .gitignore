@@ -4,3 +4,7 @@ checkpoint/
 
 data/
 *.pth
+
+# LLM-generated descriptions: keep tarballs in git, raw JSONs local only
+cache/llm_descriptions/*/
+!cache/llm_descriptions/*.tar.gz

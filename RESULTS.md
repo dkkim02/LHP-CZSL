@@ -94,6 +94,34 @@
 - LLM K=8 의미 다양성은 val에선 도움, test에선 해롭 — *현재 형태로는 generalization 손상*
 - 다음 시도: (1) LLM bank를 더 약하게 사용 (`flow_blend` 0.9), (2) val_best 대신 다른 epoch ckpt, (3) Mit-states에서 같은 패턴 재현되는지 확인
 
+### 3a-1. UT-Zap LLM run — epoch ckpt sweep (5-25)
+
+가설 검증: "val_best는 LLM run에서 잘못된 ckpt selection이다" → 13 epoch ckpt 전부 test_pairs 평가.
+
+| epoch | val HM | val AUC | **test HM** | **test AUC** | hm_seen | hm_unseen |
+|---|---|---|---|---|---|---|
+| 0 | 0.495 | 0.323 | 0.503 | 0.345 | 0.555 | 0.460 |
+| 3 | 0.559 | 0.430 | 0.551 | 0.397 | 0.545 | 0.558 |
+| 7 | 0.487 | 0.347 | 0.576 | 0.449 | 0.537 | 0.620 |
+| 8 | 0.614 | 0.440 | 0.494 | 0.370 | 0.481 | 0.508 |
+| 10 (선택된 val_best) | 0.630 | 0.464 | 0.445 | 0.322 | 0.492 | 0.406 |
+| **12 (best test)** | **0.679** | **0.506** | **0.585** | **0.434** | **0.691** | **0.508** |
+| val_best.pt 재평가 | 0.536 | 0.402 | 0.573 | 0.431 | 0.579 | 0.567 |
+
+**Δ vs cluspro baseline (test_pairs HM 0.5296):**
+- ep 12 (best): **+0.056 HM, +0.030 AUC** — fallback FlowComposer (+0.058)와 거의 동일
+- val_best.pt 재평가: +0.043 HM (놀랍게도 첫 평가의 −0.157과 다름; eval 비결정성?)
+
+**핵심 인사이트:**
+1. **LLM run의 진짜 가치는 ep 12에 있음** (val HM 0.679에서 test HM 0.585). val_best ckpt selection은 적절했어야 했으나 ep 10이 selectvar 됨 — 학습 종료 시 val_best.pt가 적절한 ckpt를 잡지 못한 것으로 보임 (이전 epoch에서 갱신 시점 issue).
+2. val 신호가 test와 잘 align되는 epoch (e.g. ep 12)에서는 LLM이 fallback과 비슷한 게인 — 더 큰 게인은 아님.
+3. **첫 평가의 val_best.pt test HM 0.3722는 outlier일 가능성** — sweep에서 재평가하니 0.573이 나옴. Evaluator의 threshold sweep이 비결정적일 수 있음.
+
+**수정된 결론:**
+- FlowComposer 자체는 baseline 위로 ~+0.06 HM (fallback ≈ ep 12 LLM)
+- LLM bank의 추가 게인은 미미하거나 noise 수준
+- val-test correlation은 epoch-dependent, val_best ckpt를 무조건 신뢰하면 안 됨
+
 ---
 
 ## 3b. UT-Zappos FlowComposer — val_pairs (학습 dev signal, 5-23)
@@ -130,6 +158,61 @@ Eval: baseline과 동일 pipeline (`test.predict_logits → Evaluator.score_fast
 - log: `logs/train_flow_composer_utzap_{,llm_}seed0_20260523_*.log`
 - LLM descriptions (144 JSON): `cache/llm_descriptions/ut-zappos/{attribute,object,composition}/*.json`
 - Pre-encoded text bank: `data/llm_descriptions/ut-zappos/text_bank_K8_vitl14_qwen3b.pt`
+
+---
+
+## 4. MIT-States — FlowComposer (5-25)
+
+**Setup.** UT-Zap과 동일 architecture. config: `train_batch_size=4, gradient_accumulation_steps=16, epochs=15`. 메모리 제약 (GPU 9.6GB) 때문에 batch_size를 8→4로 줄임. LLM descriptions은 Qwen2.5-3B-Instruct K=8로 5-24 생성 (2322 items, 2.9h).
+
+| Run | val HM (best ep) | test seen | test unseen | **test HM** | **test AUC** |
+|---|---|---|---|---|---|
+| cluspro_baseline post-fix (3-seed mean, 5-15) | — | 0.4888 | 0.5241 | **0.3887 ± 0.0008** | **0.2171 ± 0.0006** |
+| **FlowComposer fallback (templates)** | 0.366 (ep 15) | 0.4261 | 0.4856 | **0.3333** | **0.1682** |
+| **FlowComposer LLM (Qwen2.5-3B K=8)** | 0.3549 (ep 15) | 0.4147 | 0.4707 | **0.3192** | **0.1573** |
+
+**Δ vs baseline:**
+- Fallback: HM **−0.0554** (≈ 69σ), AUC **−0.0489** (≈ 81σ)
+- LLM: HM **−0.0695** (≈ 87σ), AUC **−0.0598** (≈ 100σ)
+- LLM vs fallback (within FlowComposer): HM −0.0141, AUC −0.0109
+
+**MIT-States에서는 두 FlowComposer 모두 baseline 대비 명백히 회귀**. seed std 한 자릿수 (~0.0008) 환산 시 noise 아님. UT-Zap의 +HM과 정반대 → **dataset-dependent**.
+
+**가능한 원인:**
+1. **Pair 수의 차이**: MIT 1962 vs UT-Zap 116 pairs. Closed-world 후보 pool이 17배 커서 LLM bank의 sharp score가 더 많은 wrong pair에서 noise 추가
+2. **Attribute 다양성**: MIT는 "ancient", "cluttered", "weathered" 등 추상적 — Qwen이 visually-grounded descriptions 만들기 어려움 (UT-Zap "Hair calf"는 구체적)
+3. **Batch size 차이**: MIT는 effective batch 64 (bs=4×grad_accum=16) vs UT-Zap 64 (bs=8×grad_accum=8). 활성값(activation) 크기는 ½이라 BatchNorm 등 분산 추정에 영향 가능 — flow MLPs 안 쓰지만 baseline disentangler에 BN1d 있음
+
+**전반적 트렌드:**
+- UT-Zap test_pairs: fallback +0.058, LLM ep12 +0.056 → architecture 자체는 효과
+- MIT-States test_pairs: fallback −0.055, LLM −0.069 → architecture 효과 negate
+- **두 데이터셋 일관**: LLM bank가 fallback templates보다 항상 나쁨
+
+---
+
+## 5. C-GQA — 학습 실패 (5-25)
+
+- LLM descriptions 생성: **완료** (8854 items × K=8, Qwen2.5-3B-Instruct, ~11.7h, `cache/llm_descriptions/cgqa/`)
+- 학습: **OOM 크래시 (batch_size=2, grad_accum=32에서도 GPU 9.6GB 부족)**
+
+C-GQA는 7767 closed-world pairs (UT-Zap 67×, MIT-States 4×). text encoder가 5592 train pairs를 매 forward에서 인코딩 → 메모리 폭증. batch_size=1로도 불충분 추정. FlowComposer 코드의 text encoding을 chunking하도록 수정해야 가능.
+
+ckpt 없음. `logs/train_flow_composer_cgqa{,_llm}_seed0_20260525_173707.log`에 OOM 로그.
+
+---
+
+## 6. 종합 결론 (FlowComposer + LLM-augmented Flow Matching)
+
+| 데이터셋 | Δ HM vs baseline (fallback) | Δ HM vs baseline (LLM) | LLM이 fallback보다 |
+|---|---|---|---|
+| UT-Zap (test_pairs) | **+0.058** | **+0.056** (ep 12) | 거의 동등 (−0.002) |
+| MIT-States (test_pairs) | **−0.055** | **−0.069** | 더 나쁨 (−0.014) |
+| C-GQA | (OOM) | (OOM) | — |
+
+1. **FlowComposer architecture 자체**: UT-Zap에서 +0.06 HM, MIT-States에서 −0.055 HM → dataset-dependent, **시드 std로 검증 필요** (1-seed only)
+2. **LLM bank**: 두 데이터셋 모두에서 fallback templates 대비 추가 게인 **없음**. UT-Zap에서는 사실상 동등, MIT-States에서는 더 나쁨 → 현재 형태(K=8 desc, p_c+p_a·p_o blend)로는 의미 다양성을 게인으로 전환 못함
+3. **val→test calibration mismatch가 LLM run에서 더 큼** (UT-Zap LLM val_best ep 10 test HM 0.445 vs ep 12 0.585) → LLM bank의 sharp score가 val에 overfit. val_best ckpt 자동 selection은 LLM run에서 신뢰 불가
+4. **다음 시도 후보**: (1) flow_blend 0.9 (LLM 비중↓), (2) image-conditional LLM aggregation, (3) MIT/CGQA에서 더 큰 GPU로 batch size 정상화, (4) 3-seed std 측정
 
 ---
 

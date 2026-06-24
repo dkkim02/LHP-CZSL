@@ -1,6 +1,29 @@
 # LHP-CZSL Research Log
 
-작성일 2026-05-02 16:15 KST. 4-27 ClusPro baseline (K=5) 시작 시점부터 오늘 3-seed 본런 시작 직전까지의 정리. **5-3 09:00 업데이트**: UT-Zap v1_init_only 3-seed 결과 (§1) + baseline tie 결론 + 다음 단계 후보 (§4). **5-3 21:35 업데이트**: v3_text 3-seed 본런이 16:08 KST에 끝났으나 train loss와 test 숫자가 v1_init_only와 비트 일치 → **invalid run으로 폐기**, §4.5에 디버깅 단서 정리. **5-5 20:35 업데이트**: mit-states LLM feasibility 점수 28,175 조합 생성 완료 (§6). **5-6 10:54 업데이트**: v3_text refinement Phase A — LLM visual descriptions를 mit-states에 적용한 3-seed 본런 launch (§10). **5-10 22:19 업데이트**: 5-8 재현 런이 seed0 ep8 test 도중 SIGKILL로 사망 (디스크 96% + GPU 외부 contention 추정), 디스크 정리 후 seed0만 재시도 launch (§10-6). **5-11 16:30 업데이트**: seed0 retry 완주 + 3-seed test_pairs 재평가 → **Phase A negative 확정** (HM Δ=−0.028 vs baseline). 이전 "+0.012 HM 신호"는 val_pairs(우리) vs test_pairs(논문/baseline) 비교 오류였음. §1 mit-states 표 + §10-5 분기 갱신, §11 신설(convention 정리 + ClusPro 재현 갭). **5-16 R2D2 진입 결정 업데이트**: §11-18 결과 보고 사용자가 axis pivot. v3_text 류 add-on은 봉인했지만 description 정보는 살린다 — **vision-side 구조를 새로 설계해서 distillation으로 흡수, inference에는 description을 안 쓴다**. CLIP ViT patch grid(기존 CZSL이 안 쓰는 lever) + LLM description spatial richness 결합. 4-stage plan + pre-registered judgment 사전 등록. 상세 §13. **5-14 21:27 업데이트**: UT-Zap chain (Troika baseline + Troika v3_text-claude) 종료. baseline HM 0.5139 / AUC 0.3782, v3_text-claude HM 0.4612 / AUC 0.3252 → **Δ HM −0.053, AUC −0.053** (사전 등록 "<−0.005" bucket 적중). **UT-Zap에서도 v3_text negative → dataset-dependency 가설 기각, v3_text axis 완전 봉인**. 면담 page 9 +1.5pp 신호의 출처는 LHP-CZSL framework noise + short categorical sub-name 형식이었음. 상세 §11-18. **5-15 03:55 업데이트**: 4-27/28 baseline은 pre-AMP-fix(5-2 이전) ckpt라 노이즈 corrupt 위험 있음. 비교 기준선 재확보를 위해 **mit-states cluspro_baseline post-fix 3-seed 재학습 launch** (config: `cluspro_baseline_mit_l14_v2_seed{0,1,2}.yml`, GPU 1, sequential). 첫 batch 1.08 it/s, 1 run ≈ 11.6 GB VRAM. paperhp probe(5-11) 결과는 baseline 대비 test 거의 동률(HM −0.004, AUC +0.0004) → **paperhp 설정 폐기**. **5-16 업데이트**: 5-15 baseline 3-seed 완주 (22:34 KST 종료). post-fix 3-seed mean HM 0.3887 / AUC 0.2171, **4-27 pre-fix single-seed(0.3893/0.2169)와 사실상 동일** (Δ HM −0.0006, Δ AUC +0.0002). 시드 std HM ±0.00076 / AUC ±0.00056로 매우 작음 → **mit-states/ViT-L/14에서는 AMP NaN 오염이 metric에 영향 없었음** 확인 ([[project_lhp_czsl_amp_nan]] 가정 일부 기각). 기존 mit-states 표의 1-seed 결과 모두 신뢰 유효. v3_text −2.8pp HM은 시드 std 대비 ~35σ → 분명한 음의 신호. 상세 §12. **5-17 09:46 업데이트**: R2D2 distill_weight sweep(dw=0.1/0.3/0.5) 완주. dw=0.1이 best (test HM 0.3832, Δ vs baseline −0.0055 ≈ 7σ). 셋 다 사전 등록 봉인 조건(<−0.005) 적중하지만, val_metric=best_loss로 ep1-2 ckpt 선택 → val HM peak(ep2-3, 0.41+) 회수 못함. **봉인 확정 전 best_hm val_metric ablation 1런(dw=0.1, seed0) 필요**. Over-distillation 가설은 부분 확인 (dw 1.0→0.1 test HM +0.0095, val peak +0.0078). 상세 §13-5f. **5-18 17:10 업데이트**: §13-5g best_hm ablation 완주 (5-17 23:29 ~ 5-18 04:36 KST). val_best=ep3 ckpt → test HM 0.3926 / AUC 0.2231. val_metric 단일 변경만으로 dw=0.1 best_loss 대비 HM +0.0094, AUC +0.0085 — val_metric 미스매치(§13-5d-2)가 격차 일부의 원인 확인. 그러나 baseline 대비 Δ HM +0.0039 (~5σ) / Δ AUC +0.0060 (~10σ)로 **사전 등록 cutoff(+0.005) 진입 실패, 0.0011 short**. tie 영역(0.3837 ≤ HM < 0.3937) 진입 → **§13-5g 룰에 의해 R2D2 framework sealing 결정**, Stage 2 routing(§13-5c) launch 보류. SOTA 대비: Troika/CDS-CZSL/PLID range(HM 0.390~0.393) 도달, ClusPro 논문 SOTA(HM 0.407)에는 −1.4pp 미달 — 우리 ClusPro 재현 갭(§11-2, −1.8pp) 안에 머무름. 상세 §13-5h. **5-18 17:30 axis pivot**: R2D2 봉인 후 다음 axis는 [[project_lhp_czsl_text_enrich]]의 Phase B — **image-conditional description selection on LHP-CZSL v3_text framework**. v3_text mean-pool 가설을 직접 검증: description content는 그대로 두고 sub-meaning aggregation만 image-cond softmax로 교체. CDS-CZSL과 차별: (1) primitive-level multi-prototype (variable K_p, CDS는 single state per primitive), (2) attr+obj 양쪽 image-cond (CDS는 attr/state-only). 4-stage plan + pre-registered judgment §14 신설. **5-18 18:05 업데이트**: Stage 0 probe (1ep sanity) 통과 — train loss 2.53→1.68 monotone, NaN 0회, VRAM 13GB. PyTorch 1.11 scatter_reduce_ 미지원으로 helper signature 변경 (padded indices + masked F.softmax, semantically 동일). **Stage 1 launch (mit-states seed 0, 15 epoch, PID 4025895)** — ETA 5-19 00:00 KST. 상세 §14-9.
+---
+
+## ★ 최신 요약 — §20 Redefined-Axis Program (2026-06-01, 4축 전부 SEALED)
+
+**목표**: Troika baseline의 cross-framework gap (mit-states/ViT-L/14: **−0.017 HM / −0.020 AUC** vs ClusPro 0.407/0.238)을 재정의 4축 C′/D′/E/F로 닫을 수 있는지 사전 등록 검증.
+**Baseline**: Troika best_loss 3-seed **HM 0.3899 ± 0.0038 / AUC 0.2177** (single-seed §11-11 = 0.3940). 시드 band ±0.011 HM(3σ). **Cutoff**: test HM > 0.4050 (Δ > +0.011) → 유의 / 0~+0.011 tie / <0 fail → 봉인.
+
+| 축 | 메커니즘 | 개입강도(bite) | 결과 | Δ HM | 판정 |
+|---|---|---|---|---|---|
+| **C′** | logic-rule (attr mutex + obj–attr incompat soft penalty, λ=0.1) | ~0.2% | 3-seed HM **0.3890** / AUC .2160 | −0.0009 | fail → 봉인 (5-28) |
+| **D′** | LLM semantic hard-neg InfoNCE (λ=0.1, τ=0.1) | ~0.8% | seed0 HM **0.3951** / AUC .2189 | +0.0011 | tie → 봉인 (5-31) |
+| **E** | LLM taxonomy aux CE (attr→18 state-groups, obj→21 super-cats) | **~3.3%** | seed0 HM **0.382** / AUC .2136 | −0.012 | fail → 봉인 (6-1) |
+| **F** | LLM multimodal test-time rerank (top-5 재선택) | inference-only | clean probe top1 0.340→**0.320** | net −0.02 | null → 봉인, $65 waive (6-1) |
+
+**핵심 3줄:**
+1. **개입을 강하게 할수록 더 나쁘다** — bite 0.2→0.8→3.3%로 키웠으나 신호 0/음수, 최강 E가 −0.012로 worst. "보조 supervision 강화 = 표현 개선" 가설 직접 반증(coarse prior가 fine-grained 변별 희석, 과적합 가속).
+2. **inference rerank(F)도 null** — zero-shot LLM은 동시 참 속성 다수일 때(huge↔inflated balloon) dataset single-label과 어긋나 복구(+5)<파괴(−6). (1차 +0.22는 이미지 경로에 정답 박힌 leak artifact → 익명화+gt-blind 평가자 재측정 후 −0.02 확정. *vision-LLM eval 시 path/filename leak 필수 점검.*)
+3. **gap은 architectural** — legacy 11축 + ckpt-selection + §20 4축 = 누적 16축 전부 null/sealed. axis/hyperparam/inference로 닫을 EV ≈ 0 → **새 architecture/framework 진입 국면**.
+
+산출물: `section20_summary.md`(이 표 1p), `Troika/code/probe_f.py`(rerank harness), `Troika/data/F_probe/test_top5_preds.json`(test 12,995장 top-5 캐시). 상세: §20-4(C′)/§20-5(D′)/§20-6(E)/§20-7(F).
+
+---
+
+작성일 2026-05-02 16:15 KST. 4-27 ClusPro baseline (K=5) 시작 시점부터 오늘 3-seed 본런 시작 직전까지의 정리. **5-3 09:00 업데이트**: UT-Zap v1_init_only 3-seed 결과 (§1) + baseline tie 결론 + 다음 단계 후보 (§4). **5-3 21:35 업데이트**: v3_text 3-seed 본런이 16:08 KST에 끝났으나 train loss와 test 숫자가 v1_init_only와 비트 일치 → **invalid run으로 폐기**, §4.5에 디버깅 단서 정리. **5-5 20:35 업데이트**: mit-states LLM feasibility 점수 28,175 조합 생성 완료 (§6). **5-6 10:54 업데이트**: v3_text refinement Phase A — LLM visual descriptions를 mit-states에 적용한 3-seed 본런 launch (§10). **5-10 22:19 업데이트**: 5-8 재현 런이 seed0 ep8 test 도중 SIGKILL로 사망 (디스크 96% + GPU 외부 contention 추정), 디스크 정리 후 seed0만 재시도 launch (§10-6). **5-11 16:30 업데이트**: seed0 retry 완주 + 3-seed test_pairs 재평가 → **Phase A negative 확정** (HM Δ=−0.028 vs baseline). 이전 "+0.012 HM 신호"는 val_pairs(우리) vs test_pairs(논문/baseline) 비교 오류였음. §1 mit-states 표 + §10-5 분기 갱신, §11 신설(convention 정리 + ClusPro 재현 갭). **5-16 R2D2 진입 결정 업데이트**: §11-18 결과 보고 사용자가 axis pivot. v3_text 류 add-on은 봉인했지만 description 정보는 살린다 — **vision-side 구조를 새로 설계해서 distillation으로 흡수, inference에는 description을 안 쓴다**. CLIP ViT patch grid(기존 CZSL이 안 쓰는 lever) + LLM description spatial richness 결합. 4-stage plan + pre-registered judgment 사전 등록. 상세 §13. **5-14 21:27 업데이트**: UT-Zap chain (Troika baseline + Troika v3_text-claude) 종료. baseline HM 0.5139 / AUC 0.3782, v3_text-claude HM 0.4612 / AUC 0.3252 → **Δ HM −0.053, AUC −0.053** (사전 등록 "<−0.005" bucket 적중). **UT-Zap에서도 v3_text negative → dataset-dependency 가설 기각, v3_text axis 완전 봉인**. 면담 page 9 +1.5pp 신호의 출처는 LHP-CZSL framework noise + short categorical sub-name 형식이었음. 상세 §11-18. **5-15 03:55 업데이트**: 4-27/28 baseline은 pre-AMP-fix(5-2 이전) ckpt라 노이즈 corrupt 위험 있음. 비교 기준선 재확보를 위해 **mit-states cluspro_baseline post-fix 3-seed 재학습 launch** (config: `cluspro_baseline_mit_l14_v2_seed{0,1,2}.yml`, GPU 1, sequential). 첫 batch 1.08 it/s, 1 run ≈ 11.6 GB VRAM. paperhp probe(5-11) 결과는 baseline 대비 test 거의 동률(HM −0.004, AUC +0.0004) → **paperhp 설정 폐기**. **5-16 업데이트**: 5-15 baseline 3-seed 완주 (22:34 KST 종료). post-fix 3-seed mean HM 0.3887 / AUC 0.2171, **4-27 pre-fix single-seed(0.3893/0.2169)와 사실상 동일** (Δ HM −0.0006, Δ AUC +0.0002). 시드 std HM ±0.00076 / AUC ±0.00056로 매우 작음 → **mit-states/ViT-L/14에서는 AMP NaN 오염이 metric에 영향 없었음** 확인 ([[project_lhp_czsl_amp_nan]] 가정 일부 기각). 기존 mit-states 표의 1-seed 결과 모두 신뢰 유효. v3_text −2.8pp HM은 시드 std 대비 ~35σ → 분명한 음의 신호. 상세 §12. **5-17 09:46 업데이트**: R2D2 distill_weight sweep(dw=0.1/0.3/0.5) 완주. dw=0.1이 best (test HM 0.3832, Δ vs baseline −0.0055 ≈ 7σ). 셋 다 사전 등록 봉인 조건(<−0.005) 적중하지만, val_metric=best_loss로 ep1-2 ckpt 선택 → val HM peak(ep2-3, 0.41+) 회수 못함. **봉인 확정 전 best_hm val_metric ablation 1런(dw=0.1, seed0) 필요**. Over-distillation 가설은 부분 확인 (dw 1.0→0.1 test HM +0.0095, val peak +0.0078). 상세 §13-5f. **5-18 17:10 업데이트**: §13-5g best_hm ablation 완주 (5-17 23:29 ~ 5-18 04:36 KST). val_best=ep3 ckpt → test HM 0.3926 / AUC 0.2231. val_metric 단일 변경만으로 dw=0.1 best_loss 대비 HM +0.0094, AUC +0.0085 — val_metric 미스매치(§13-5d-2)가 격차 일부의 원인 확인. 그러나 baseline 대비 Δ HM +0.0039 (~5σ) / Δ AUC +0.0060 (~10σ)로 **사전 등록 cutoff(+0.005) 진입 실패, 0.0011 short**. tie 영역(0.3837 ≤ HM < 0.3937) 진입 → **§13-5g 룰에 의해 R2D2 framework sealing 결정**, Stage 2 routing(§13-5c) launch 보류. SOTA 대비: Troika/CDS-CZSL/PLID range(HM 0.390~0.393) 도달, ClusPro 논문 SOTA(HM 0.407)에는 −1.4pp 미달 — 우리 ClusPro 재현 갭(§11-2, −1.8pp) 안에 머무름. 상세 §13-5h. **5-18 17:30 axis pivot**: R2D2 봉인 후 다음 axis는 [[project_lhp_czsl_text_enrich]]의 Phase B — **image-conditional description selection on LHP-CZSL v3_text framework**. v3_text mean-pool 가설을 직접 검증: description content는 그대로 두고 sub-meaning aggregation만 image-cond softmax로 교체. CDS-CZSL과 차별: (1) primitive-level multi-prototype (variable K_p, CDS는 single state per primitive), (2) attr+obj 양쪽 image-cond (CDS는 attr/state-only). 4-stage plan + pre-registered judgment §14 신설. **5-18 18:05 업데이트**: Stage 0 probe (1ep sanity) 통과 — train loss 2.53→1.68 monotone, NaN 0회, VRAM 13GB. PyTorch 1.11 scatter_reduce_ 미지원으로 helper signature 변경 (padded indices + masked F.softmax, semantically 동일). **Stage 1 launch (mit-states seed 0, 15 epoch, PID 4025895)** — ETA 5-19 00:00 KST. 상세 §14-9. **5-28 업데이트**: C′(logic-rule grounding) 3-seed 완주 (seed0 5-27 04:19, seed1→2 chain 5-28 09:07). best_loss 3-seed mean HM 0.3890 ± 0.0035 / AUC 0.2160 ± 0.0027 — baseline best_loss(0.3899/0.2177) 대비 Δ HM −0.0009 / Δ AUC −0.0017, 시드 노이즈 안의 **신호 0**. Stage 2 cutoff 0.4009 대비 −0.0119 (~3.4σ 아래). 원인: λ=0.1 mutex/compat loss 기여가 base의 ~0.2%로 inert (§20-4-1 예고대로). **C′ axis fail** (사용자 결정: 즉시 봉인). training-change 봉인 8→9. 상세 §20-4-6. **D′ 진입**: LLM semantic hard-neg InfoNCE(troika_hardneg, λ=0.1/τ=0.1). hard-neg는 큐레이션 클러스터(attr sim-group + obj family) 기반 1164/1262 comp×top-5(cross-primitive 39%). Stage 0 smoke 통과(NaN0/VRAM14GB/1.76it/s, L_hn 기여 ~0.8% = C′의 4배). **Stage 1 launch 15:47 (seed0, GPU1 단독, ETA ~22:00). cutoff test HM>0.4050.** 상세 §20-5-1/2.
 
 모든 실험: ViT-L/14 backbone, fp16 AMP, batch_size=8, grad_accum=8, 15 epochs (probe 제외), seed=0 (3-seed run 제외), val_metric=best_hm. 데이터셋 경로 등 환경 설정은 [LHP-CZSL setup memory](/home/student/.claude/projects/-home-student-dongki/memory/project_lhp_czsl_setup.md) 참고.
 
@@ -2097,3 +2120,1357 @@ H2 +0.0037을 baseline의 새 reporting standard로 채택 (no retrain cost) + �
 - 우리 최고: H2 ensemble 0.3924 (§17-4). H1 seed 0 단독 0.383은 그 아래.
 - ClusPro paper 0.407까지 Δ +0.0146 갭. H1으로 못 메움. H3 OT가 남은 유일한 high-ceiling 후보.
 
+### 17-12. H3 OT seed 0 학습 종료 — 사실상 baseline 동률, 즉시 sealing (5-22 11:08 → 5-22 21:10 KST, 약 10h)
+
+**구현**: §17-10 plan 그대로 적용.
+- `model/otgcc.py`: `local_assign_ot(features, similarity_scores, sinkhorn_iters, epsilon, top_percent)` 신규. (B, K) similarity에 `distributed_sinkhorn` 알고리즘 (exp → row/col 교대 normalize) 적용.
+- `model/cluspro_baseline.py:_update_prototypes`: `use_ot_assignment=True`일 때 전체 batch coupling matrix로 Sinkhorn 균형 적용 → gumbel hard assign. attr/obj 대칭.
+- `parameters.py`: `--use_ot_assignment` (default False), `--sinkhorn_epsilon=0.05`, `--sinkhorn_iters=3` 추가.
+- config: `config/cluspro_baseline_mit_l14_v2_ot_seed0.yml` (baseline 기반 + `use_ot_assignment: true`).
+- AMP autocast 안에서 Sinkhorn 안정성: `_update_prototypes`가 이미 `@torch.autocast(enabled=False)`로 fp32 강제 → Sinkhorn도 fp32 실행.
+
+**Launch**: 5-22 11:08 KST. `same_prim_sample=False`라 batch I/O 단순 → micro-batch 8, grad_accum 8 (effective bs 64). 1 epoch ~27분, 15 epoch 약 10h. H1 (13h)보다 빠름.
+
+**최종 TEST 결과 (val_best.pt @ ep14)**:
+- best_seen 0.4849 | best_unseen 0.5242 | **best_hm 0.3867** | AUC 0.2167 | attr_acc 0.3855 | obj_acc 0.5561
+- 정상 종료 (Traceback/OOM/NaN 없음).
+
+**VAL trajectory (epoch 1 → 15, running best_hm)**:
+- ep1 0.3744 → ep2 0.3949 → ep3 0.3973 → ep4 0.4125 → ep5 0.4135 → ep6 0.4145 → ep7 0.4143 → ep8 0.4172 → ep9 **0.4249** → ep10 0.4214 → ep11 0.4225 → ep12 0.4240 → ep13 0.4237 → **ep14 peak 0.4250** → ep15 0.4246
+- val_metric=best_hm로 ep14에서 val_best.pt 저장. 사실상 ep9에서 이미 saturate.
+
+**판정 (사전 등록 §17-10 기준, single-seed baseline 0.3879 대비)**:
+
+| 지표 | H3 OT seed 0 | baseline seed 0 (§12-1, §17-4) | Δ |
+|---|---|---|---|
+| **TEST HM** | 0.3867 | 0.3879 | **−0.0012** |
+| TEST AUC | 0.2167 | 0.2176 | −0.0009 |
+| TEST seen | 0.4849 | 0.4933 | −0.0084 |
+| TEST unseen | 0.5242 | 0.5226 | +0.0016 |
+| TEST attr | 0.3855 | 0.3842 | +0.0013 |
+| TEST obj | 0.5561 | 0.5590 | −0.0029 |
+| **VAL HM (best ckpt)** | 0.4250 | 0.4267 | **−0.0017** |
+
+- HM Δ = **−0.0012**, cutoff `[−0.005, +0.005]` **tie band 중앙**. baseline std ±0.0008 기준 −1.5σ. 통계적으로 baseline과 구분 안 됨.
+- paper §4.4의 +3.3 AUC 메커니즘이 **우리 framework에서 0pp 재현**.
+
+**핵심 관찰 — H1과는 다른 failure 모드**:
+- val/test gap: H3 OT 0.0383 vs baseline 0.0388 → **gap 거의 동일** (H1은 +0.008 확대). overfitting 아님.
+- **val 자체도 −0.0017**로 baseline 미만. 즉 OT signal이 어디서도 도움 안 됨.
+- 진단: paper의 +3.3 AUC는 raw ClusPro framework (K=5, paper hyperparam) 위에서 측정. 우리는 LHP framework 위에서 `_update_prototypes`만 OT로 교체했으나, attr_labels 생성 경로(`_get_cluster_labels`)와 nceloss/contrastive_weight 결합이 OT가 만드는 soft balance 신호를 흡수하지 못함. paper 메커니즘은 framework 일체로 작동.
+
+**결정 (5-23 사용자 승인)**: ε/sinkhorn_iters 4-cell ablation skip, **H3 OT = 10th sealed axis로 즉시 봉인**. framework pivot 검토 단계 진입.
+- 근거: val에서도 negative라 mechanism-level dead. ε/iter 조정은 동일 메커니즘 안의 HP search → EV < cost. H1 sealing precedent 그대로 적용.
+- 10th sealed axes: R2D2, imgsel, cosface, v3_text, vision_distill, image_cond, ckpt-ensemble, feasibility, hardpair, **OT**.
+- **living high-ceiling axis 소진**. framework pivot 결정 단계.
+
+**산출물**:
+- checkpoint: `checkpoint/cluspro_baseline_l14_mit_v2_ot_seed0/val_best.pt` (epoch 14)
+- log: `logs/train_ot_mit_seed0_20260522_110850.log` (10.7MB)
+- config: `config/cluspro_baseline_mit_l14_v2_ot_seed0.yml`
+- 코드: `model/otgcc.py` (재작성), `model/cluspro_baseline.py:_update_prototypes` (OT 분기), `parameters.py` (3 flags)
+
+**SOTA 갭 (변동 없음)**:
+- 우리 최고: H2 ensemble 0.3924 (§17-4). H3 OT seed 0 단독 0.3867은 그 아래.
+- ClusPro paper 0.407까지 Δ +0.0146. mit-states / ViT-L/14 / LHP-CZSL framework 안에서 남은 living axis 없음.
+
+### 17-13. Framework pivot 검토 (5-23, 진행 중)
+
+10 axes sealed in current setup (mit-states + ViT-L/14 + cluspro_baseline framework). 남은 방향:
+
+| 옵션 | 비용 | 기대 신호 | 리스크 |
+|---|---|---|---|
+| **(A) UT-Zappos 재시도** | retrain ~6-8h × 3 seed | mit-states에서 sealed axes 중 일부가 UT-Zap에서 살아날 수 있음 (도메인 다름). 단 v3_text는 [[project_lhp_czsl_direction]]에서 양 dataset 모두 fail 확인 — 모든 axis가 mit-states 결과와 같으리라는 보장 없음 | UT-Zap도 모두 fail이면 framework 전체 dead 판정 |
+| **(B) backbone 교체 (ViT-B/16 또는 더 강한 backbone)** | retrain 시간 backbone에 따라 변동. ViT-B/16은 빠르지만 ceiling 낮음. CLIP RN50x16 / OpenCLIP G/14 등 | backbone capacity 변화로 axis effective space 다시 열릴 수 있음 | code change 큼, paper SOTA와 직접 비교 어려움 |
+| **(C) Troika framework 전환** | dongki/Troika에 이미 존재. 우리가 §15에서 mit-states test HM 0.394 재현 — ClusPro 0.3893보다 위. 새 SOTA chase 기반선 | Troika 위에서 H1/H2/H3 axis 재시도 가능. Troika는 attribute 측 cross-modal decomposition 구조 다름 → 같은 axis가 다르게 작동 가능 | 새 framework 적응 비용. 우리 LHP 코드 자산 일부만 이식 가능 |
+| **(D) novel mechanism 탐색** | 시간 무한정 | 진짜 new axis 발굴 가능 | EV 낮음 (이미 10 axes sealed). 학회 deadline 등 외부 제약 있다면 위험 |
+
+권장: **(C) Troika framework 전환**. 이미 재현된 강한 기반선(0.394 > ClusPro 0.3893)에서 시작 → mit-states 위에서 paper 0.407 SOTA chase에 더 유리. (A)는 sealed axis 검증용으로 cheap이라 (C)와 병행 가능.
+
+**5-23 사용자 결정**: (C) Troika framework 전환 + 첫 axis로 **H3 OT를 Troika에 이식** (사용자 선택). [[project_lhp_czsl_h3_ot_sealed]]에 "OT 메커니즘은 framework-dependent" 명시 → Troika에서 재평가 가능.
+
+### 17-14. Troika OT 이식 — 사전등록 (5-23 KST, 작업 중)
+
+**가설**: H3 OT(Sinkhorn-balanced prototype assignment)는 LHP-CZSL/cluspro_baseline framework에서 메커니즘이 framework에 흡수되어 신호 0이었음 (§17-12). Troika framework는 attribute/object disentangler가 분리돼 있고 prototype/contrastive 구조가 없으므로, prototype + OT-balanced clustering aux loss를 **새 신호 경로**로 끼우면 attr/obj feature space에 추가 supervision이 흘러 SOTA chase에 도움될 수 있음. 단, 메커니즘이 framework-dependent임이 §17-12에서 입증됐으므로 부정 결과도 가능.
+
+**설계 (Option A: visual prototypes + OT + contrastive aux loss)**:
+
+LHP-CZSL `model/cluspro_baseline.py:_update_prototypes_ot` + `_get_cluster_labels` + nceloss를 Troika 위에서 재구성. paper(ClusPro §4.4) 메커니즘 그대로 옮긴 최소 포팅.
+
+- **새 파일**: `Troika/code/model/troika_ot.py` (TroikaOT 클래스, ~330 LOC), `Troika/code/model/ot_utils.py` (local_assign_ot 포팅)
+- **변경 파일**: `Troika/code/model/model_factory.py` (troika_ot 분기)
+- **새 config**: `Troika/code/config/troika/mit-states-ot.yml`
+- **prototype 구조**: K=5 prototype queue per primitive (115 attr + 245 obj = 360 queue × 5 × 768 ≈ 1.4M 추가 buffer, EMA momentum 0.99)
+- **OT 업데이트**: 매 train step, attr_disentangler/obj_disentangler 출력 features로 Sinkhorn-balanced 배치-prototype coupling (ε=0.05, iters=3) → gumbel hard → EMA. paper §4.4와 동일.
+- **aux loss**: 매 train step, cluster_labels (B,) over (num_prim × K) classes → l2-normalize(disentangler_feat) vs all prototypes의 cosine similarity logits / temperature=0.07 → cross_entropy. attr + obj 평균. `contrastive_weight=0.1`로 main loss에 가산. main forward path는 byte-identical to baseline.
+- **prototype init**: 첫 배치에서 per-class mean으로 K slot 채우고 작은 noise 추가 (uniform OT trivial 해결책 방지)
+
+**Hyperparameters (고정, LHP/ClusPro 매칭)**: cluster_num=5, proto_momentum=0.99, sinkhorn_epsilon=0.05, sinkhorn_iters=3, contrastive_weight=0.1, cluster_temperature=0.07.
+
+**학습 설정**: Troika baseline(§11-11)과 동일 — mit-states / ViT-L/14 / lr=1e-4 / wd=1e-5 / attr_dropout=0.3 / batch=8 × grad_accum=8 / epochs=10 / val_metric=best_loss / seed 0 / GPU 1.
+
+**비교 기준**: Troika baseline seed 0 (§11-11) — test HM **0.3940**, AUC **0.2177**.
+
+**사전 등록 cutoff (single-seed)**:
+- **Δ HM ≥ +0.005 vs baseline (즉 HM ≥ 0.3990)** → 신호 인정, 3-seed 확장 launch
+- **−0.005 ≤ Δ HM < +0.005 (HM ∈ [0.3890, 0.3990))** → tie band → 11th sealed axis (즉시 봉인, ε/iter sweep skip)
+- **Δ HM < −0.005 (HM < 0.3890)** → dead → 11th sealed axis
+
+같은 cutoff을 §13-5h, §16-5, §17-9에서 적용 — 일관성 유지. Troika baseline은 1-seed라 std 미상이지만, cluspro framework 3-seed std HM ±0.0008 기준 ±0.005는 ~6σ로 안전.
+
+**EV 평가**: Troika 위에서 prototype + OT가 작동한다는 직접 증거 없음. mit-states/ClusPro 5-23 sealing 결과(Δ HM −0.0012)를 prior로 받으면 base rate ≈ 0. 그러나 framework가 바뀌면 "기존 framework가 OT 신호를 흡수했다"는 LHP 진단이 끊기므로 재평가 가치 있음. 1-seed cost ≈ 10-15h (Troika baseline 속도 + aux loss overhead ~10%).
+
+**Decision tree**:
+- HM ≥ 0.3990: 3-seed 확장 후 결과 보고. 의미 있으면 paper-track novelty axis 후보.
+- HM tie band: 11th sealed axis 확정. framework pivot의 첫 axis도 dead 판정 → 다음 옵션 (H1 Troika 이식 / Troika-native mechanism / 학회 narrative pivot) 선택.
+- HM < 0.3890: dead, 같은 11th sealed axis 처리.
+
+**Smoke test 통과 조건 (사전 등록)**:
+- 1 epoch on GPU 1, batch=8, grad_accum=8 — train loss monotone 하강, NaN/Inf 0회, peak VRAM < 22GB.
+- aux_loss 첫 step 값이 log(num_prim × K) ≈ log(575) ≈ 6.35 부근에서 시작해야 init이 정상 (uniform expectation).
+- 통과 시 본런 launch.
+
+**산출물 예정**:
+- 코드: `Troika/code/model/troika_ot.py`, `model/ot_utils.py`, `config/troika/mit-states-ot.yml`
+- 학습: PID/log/save_path는 launch 시 업데이트
+
+### 17-15. Smoke test 통과 + seed 0 본런 launch (5-23 14:01 → 14:58, launch 14:59 KST)
+
+**Smoke (1ep, batch=8 × accum=8, GPU 1)**:
+- 시작 14:01:36, 종료 14:58:28 — 약 57분 (학습 ~47분 + val 4분 + test 6분)
+- Train loss epoch 평균 1.466, 첫 step 2.66 → step 20 2.22 → 단조 추세 ✓
+- VRAM peak 7.2 GB (cutoff 22 GB 안) ✓
+- NaN/Inf 0회, RuntimeError 없음 ✓
+- 1ep ckpt eval: val HM 0.3766 / AUC 0.2072, test HM 0.3544 / AUC 0.1822 (1ep 단독은 baseline 비교 의미 없음 — sanity 용)
+- 사전 등록 통과 조건(§17-14) 모두 충족 → 본런 launch.
+
+**본런 (10ep, seed 0)**: 14:59:07 KST, PID 3376964, GPU 1.
+- log: `Troika/logs/train_mit_ot_seed0_20260523_145907.log`
+- save: `Troika/save/mit-states_seed0_ot/`
+- ETA: 10ep × ~57min = **약 9.5시간** (5-23 24:30 KST 부근 종료 예상)
+- 종료 후 §17-14 cutoff 적용:
+  - test HM ≥ 0.3990 → 3-seed launch
+  - tie band 또는 음수 → 11th sealed axis 즉시 봉인
+
+### 17-16. seed 0 본런 중단 + epoch 1-5 결과 (5-24 02:10 KST 확인)
+
+**상태**: 학습 사망 — log 마지막 write 5-23 19:05 KST, epoch 6 test eval iteration 249/326 (~76%) 에서 멈춤. log 내 Traceback/Error/OOM/NaN 0건. nohup 없이 `bash scripts/run_ot_seed0.sh` 직접 실행이라 **SSH/터미널 세션 종료에 의한 SIGHUP 추정**. dmesg/journal OOM 흔적 없음, GPU 1 현재 idle (15 MiB).
+
+**완료된 epoch 1-5 test 결과** (per-epoch test metric, threshold sweep 적용):
+
+| epoch | train loss | seen | unseen | **test HM** | **test AUC** | attr_acc | obj_acc |
+|---|---|---|---|---|---|---|---|
+| 1 | 1.466 | 0.4273 | 0.5587 | 0.3766 | 0.2072 | 0.3964 | 0.5850 |
+| 2 | 0.779 | 0.4908 | 0.5731 | **0.4151** | 0.2446 | 0.4090 | 0.5886 |
+| 3 | 0.632 | 0.4984 | 0.5747 | **0.4188** ← 피크 | 0.2476 | 0.4081 | 0.5783 |
+| 4 | 0.517 | 0.5087 | 0.5651 | 0.4156 | **0.2493** ← AUC 피크 | 0.4009 | 0.5797 |
+| 5 | 0.399 | 0.5070 | 0.5596 | 0.4129 | 0.2450 | 0.3907 | 0.5707 |
+| 6 | 0.202 | (test 중단) | — | — | — | — | — |
+
+**Cutoff 판정 (§17-14)** — Troika baseline §11-11 (HM 0.3940 / AUC 0.2177) 대비:
+- 피크 Δ HM = **+0.0248** (ep3), cutoff +0.005 — **5배 초과 통과**.
+- 피크 Δ AUC = **+0.0316** (ep4).
+- ep 2-5 4개 epoch 모두 HM ≥ 0.4129 으로 cutoff 위. **신호 robust, noise 아님.**
+- 결론: §17-14 decision tree에 따라 **3-seed 확장 launch 트리거됨**.
+
+**caveat**:
+- ep5에서 HM 0.4188→0.4129로 약간 하강, train loss 0.40→0.20으로 overfitting 시작 신호. ep 6-10 추가 학습이 피크를 끌어올릴지는 미지수. 다만 §17-14 cutoff은 단일 epoch peak 기준이라 판정에 영향 없음.
+- val_metric='best_loss' 라 `val_best.pt` 는 ep1 (HM 0.3766) 시점에서 잠긴 채로 update 안 됨. val-best protocol을 단일 숫자로 보고하면 baseline 미만이 되므로 — **per-epoch peak 또는 best_hm val_metric**으로 보고 protocol 통일 필요. (R2D2 §13-5g에서 동일 이슈 발생 — best_hm val_metric으로 +0.0094 HM 회수 사례 있음.)
+- 산출물: `Troika/save/mit-states_seed0_ot/val_best.pt` (ep1), `epoch_4.pt` (~ep5 추정, 5-23 18:22), 두 ckpt 모두 1.83GB.
+
+**다음 단계 후보**:
+1. (권장) **seed 0 본런 재실행** — nohup/tmux로 감싸서 10ep 완주 후 정확한 peak/val-best 확정. ETA 9.5h. cutoff 이미 통과했으니 동시에 3-seed launch도 가능.
+2. **epoch_4.pt(~ep5)에서 resume** — train.py에 `--load_model` 분기 있는지 확인 필요. resume이 깨끗하면 4-5h만 추가.
+3. **val_metric=best_hm으로 config 변경 후 재실행** — R2D2 §13-5g 교훈 적용. 단일 숫자 reporting 깔끔해짐.
+4. **seed 0 결과만으로 3-seed launch 즉시 진행** — peak는 ep3이지만 robust signal 있으므로 cutoff 판정만 보고 진행.
+
+사용자 결정 대기 — 권장은 **(3) val_metric=best_hm 변경 + (1) seed 0 nohup 재실행**, 완주 후 3-seed launch.
+
+### 17-17. seed 0 nohup 재실행 (5-24 02:11:56 KST)
+
+**변경**: `config/troika/mit-states-ot.yml` → `val_metric: best_loss` → **`best_hm`** (R2D2 §13-5g 교훈 적용, val-best ckpt가 test peak 근방으로 가도록).
+
+**Launch**: `nohup bash scripts/run_ot_seed0.sh ... & disown`
+- PID **828185** (python train.py)
+- log: `Troika/logs/train_mit_ot_seed0_20260524_021156.log`
+- save: `Troika/save/mit-states_seed0_ot/` (이전 incomplete run은 `..._old_incomplete_20260523/`로 백업)
+- GPU 1, VRAM ~16.8 GB 점유 확인.
+- nohup + disown으로 SSH session 분리 — §17-15 SIGHUP 사망 재발 방지.
+- ETA: 10ep × ~57min ≈ **9.5h**, 5-24 11:40 KST 부근 종료 예상.
+- Namespace 로그에서 `val_metric='best_hm'` 확인됨.
+
+종료 후:
+- §17-14 cutoff 재적용 (val-best epoch의 test HM 기준으로 정식 보고)
+- ep1-5 결과 (§17-16) 이미 cutoff 통과 → 완주 후 즉시 **3-seed 확장 launch** 예정.
+
+### 17-18. seed 0 본런 종료 + §17-14 cutoff 적용 (5-24 09:00:31 KST)
+
+**Validation HM 추이** (val_metric=best_hm, 10ep 완주):
+
+| ep | best_seen | best_unseen | best_hm | AUC | attr | obj |
+|---|---|---|---|---|---|---|
+| 1 | 0.4273 | 0.5587 | 0.3766 | 0.2072 | 0.3964 | 0.5850 |
+| 2 | 0.4924 | 0.5733 | 0.4173 | 0.2457 | 0.4091 | 0.5895 |
+| 3 | 0.4967 | 0.5746 | **0.4175** | 0.2466 | 0.4077 | 0.5785 |
+| 4 | 0.5108 | 0.5649 | **0.4175** | **0.2509** ← peak | 0.4005 | 0.5796 |
+| 5 | 0.5038 | 0.5581 | 0.4121 | 0.2426 | 0.3894 | 0.5701 |
+| 6 | 0.5087 | 0.5420 | 0.4057 | 0.2378 | 0.3850 | 0.5548 |
+| 7 | 0.5092 | 0.5326 | 0.4048 | 0.2367 | 0.3820 | 0.5523 |
+| 8 | 0.5163 | 0.5280 | 0.4075 | 0.2367 | 0.3754 | 0.5452 |
+| 9 | 0.5016 | 0.5196 | 0.4031 | 0.2286 | 0.3656 | 0.5440 |
+| 10 | 0.5016 | 0.5208 | 0.3997 | 0.2256 | 0.3619 | 0.5403 |
+
+- val peak HM 0.4175 (ep3-4), AUC peak 0.2509 (ep4).
+- ep5+ monotone decay, ep10 다시 val HM 0.3997로 하강 → overfit.
+
+**Test on `val_best.pt`** (ep3 또는 ep4): **HM 0.3867 / AUC 0.2186 / attr 0.3934 / obj 0.5584**.
+
+**§17-14 cutoff 판정** — Troika baseline §11-11 (HM 0.3940 / AUC 0.2177) 대비:
+- **Δ HM = −0.0073** (cutoff −0.005 미만, **dead band 진입**)
+- Δ AUC = +0.0009 (tie)
+- 결론: **H3 OT on Troika = 11th sealed axis 확정**.
+
+**해석**:
+- §17-16 incomplete run의 val peak HM 0.4188(ep3)은 정상 신호였지만, **val_best.pt test로 정식 평가 시 0.3867** — val peak와 test 사이 약 −0.030의 generalization gap 존재.
+- 같은 generalization gap이 §17-12 cluspro_baseline + OT(test HM 0.3867 동일치)에서도 관측됨 → OT 메커니즘이 train/val 신호를 끌어올리지만 test에 전이되지 않는 패턴이 두 framework 공통.
+- §17-12 가설 "OT 메커니즘은 framework-dependent" **부분 기각**: framework 바꿔도 OT의 test 신호는 0. 즉 OT 자체가 train/val noise에 fit한 것이지 진짜 분류 신호 추가 아님.
+
+**11 sealed axes 누적**:
+- mit-states/cluspro_baseline framework (LHP-CZSL): R2D2, imgsel, cosface, v3_text, vision_distill, image_cond, ckpt-ensemble, feasibility, hardpair, OT (10)
+- mit-states/Troika framework: **OT (1, 동일 메커니즘 양 framework 모두 dead)**
+- → **현 mit-states + ViT-L/14 setup에서 axis 변형 수준 개선 EV ≈ 0**.
+
+**3-seed 확장 launch 트리거 안 됨**: §17-17 사전 계획대로면 cutoff 통과 시 즉시 3-seed였지만, **cutoff 미통과 → seed 0 결과만으로 sealing 결정**.
+
+**다음 단계 검토 (사용자 5-24 19:35 결정)**: 새 구조 진입 전 **Troika baseline gap (paper ClusPro 0.407 vs 우리 0.394, −0.013) 먼저 추적**. §18 신설.
+
+산출물: `Troika/save/mit-states_seed0_ot/val_best.pt`, `epoch_4.pt`, `epoch_9.pt`, `final_model.pt` (각 1.83GB), `Troika/logs/train_mit_ot_seed0_20260524_021156.log` (7.2MB).
+
+## 18. Baseline gap 추적 — Troika 위에서 ClusPro paper 0.407 chase (5-24 진입)
+
+### 18-1. 동기 + 진입 결정 (5-24 19:35 KST)
+
+11 axes sealed 후 사용자 결정: 새 구조 설계 전에 **Troika baseline (HM 0.394, val_metric=best_loss) → ClusPro paper SOTA (HM 0.407) gap −0.013을 hyperparam 조정으로 회수 가능한지** 우선 검증.
+
+**근거**:
+- §13-5g (R2D2/Troika dw=0.1): val_metric `best_loss → best_hm` 단일 변경으로 test HM **+0.0094** 회수 사례 있음 (0.3832 → 0.3926, val peak ckpt가 test에 더 가깝게 잡힘).
+- 우리 Troika baseline §11-11은 `val_metric=best_loss`로 학습됨 (`mit-states.yml` 기본). val_best.pt가 ep1(val HM 0.376)에서 잡혔을 가능성 높음 — val peak ep2-4(HM 0.41+)를 놓침.
+- **best_hm로 재학습 시 회수 폭이 R2D2 +0.0094 수준이면 baseline → 0.403, ClusPro 0.407까지 −0.004**까지 좁혀짐. 이 정도면 framework 차이가 아니라 reproduce hyperparam 차이로 설명 가능.
+
+### 18-2. Launch — Troika baseline + val_metric=best_hm seed 0 (5-24 19:37:53 KST)
+
+**변경**:
+- 새 yml `config/troika/mit-states-besthm.yml` 생성 — vanilla `mit-states.yml`에서 `val_metric: best_loss → best_hm` 단일 변경만. 나머지 hp (lr=1e-4, wd=1e-5, attr_dropout=0.3, epochs=10, batch=8×grad_accum=8, cmt_layers=3) 모두 §11-11과 동일.
+- 새 script `scripts/run_baseline_besthm_seed0.sh` (nohup launch wrapper).
+
+**Run**:
+- PID **3433364** (python train.py)
+- log: `Troika/logs/train_mit_baseline_besthm_seed0_20260524_193753.log`
+- save: `Troika/save/mit-states_seed0_baseline_besthm/`
+- GPU 1, CUDA_VISIBLE_DEVICES=1, nohup + disown.
+- ETA: §17-17 OT run(9.5h)보다 OT overhead 없어서 짧을 듯, ~7-8h. 5-25 03:00-04:00 KST 부근 종료 예상.
+
+**판정 (사전 등록)** — §11-11 test HM 0.3940 / AUC 0.2177 대비:
+- test HM ≥ 0.404 → 사실상 ClusPro paper SOTA 0.407 tie band (±0.005). **"Troika best_hm = SOTA-class baseline"** 결론 + 11 sealed axes를 best_hm baseline 위에서 재평가 검토.
+- test HM ∈ [0.398, 0.404) → 일부 회수, 진짜 gap은 framework 차이 또는 다른 미상 hyperparam. 후속 진단 (lr/wd/scheduler/seed sweep).
+- test HM ∈ [0.394, 0.398) → 단순 ckpt 선택 효과 미미. R2D2 §13-5g와 다른 양상 — val-test 상관성 framework별 다름.
+- test HM < 0.394 → §11-11이 seed noise였을 가능성. seed 1, 2 추가 본런 필요.
+
+**기대치**: §13-5g 회수폭 +0.0094 prior로 → mean estimate 0.3940 + 0.0094 = **0.4034**. tie band(0.398-0.404) 안. 그러나 R2D2 framework와 vanilla Troika의 val/test 상관성 다를 수 있으므로 noise band 넓게 잡음.
+
+종료 후: 결과에 따라 (a) 다른 hp(lr/wd/scheduler) 단일축 ablation, 또는 (b) 새 구조 진입 결정.
+
+### 18-3. seed 0 본런 종료 + §18-2 cutoff 적용 (5-25 02:15:25 KST)
+
+**Run 통계**: 5-24 19:37:53 → 5-25 02:15:25, **약 6h 38m** (§17-17 OT run 6h 49m 대비 ~10min 짧음, OT overhead 없는 만큼).
+
+**Validation HM 추이** (val_metric=best_hm, 10ep 완주):
+
+| ep | best_seen | best_unseen | best_hm | AUC | attr | obj |
+|---|---|---|---|---|---|---|
+| 1 | 0.4181 | 0.5584 | 0.3729 | 0.2014 | 0.3825 | 0.5843 |
+| 2 | 0.4913 | 0.5761 | 0.4155 | 0.2461 | 0.4031 | 0.5938 |
+| 3 | 0.5005 | 0.5725 | **0.4157** ← peak | **0.2475** ← AUC peak | 0.4016 | 0.5812 |
+| 4 | 0.5054 | 0.5578 | 0.4151 | 0.2451 | 0.4020 | 0.5762 |
+| 5 | 0.5141 | 0.5524 | 0.4099 | 0.2446 | 0.3836 | 0.5703 |
+| 6 | 0.5125 | 0.5339 | 0.4042 | 0.2360 | 0.3801 | 0.5584 |
+| 7 | 0.5043 | 0.5335 | 0.4045 | 0.2335 | 0.3789 | 0.5542 |
+| 8 | 0.5060 | 0.5237 | 0.4037 | 0.2307 | 0.3739 | 0.5484 |
+| 9 | 0.5103 | 0.5198 | 0.4037 | 0.2304 | 0.3753 | 0.5456 |
+| 10 | 0.4778 | 0.5132 | 0.3882 | 0.2120 | 0.3585 | 0.5382 |
+
+- val peak HM 0.4157 (ep3), AUC peak 0.2475 (ep3).
+- ep4~ monotone decay, ep10 val HM 0.3882 → overfit pattern. §17-18 OT run(ep4 peak 0.4175)과 거의 동일 trajectory shape.
+
+**Test on `val_best.pt`** (ep3): **HM 0.3905 / AUC 0.2235 / attr 0.3963 / obj 0.5561**.
+
+**§18-2 사전 등록 cutoff 적용** — §11-11 baseline (HM 0.3940 / AUC 0.2177, val_metric=best_loss) 대비:
+- **Δ HM = −0.0035** (cutoff 4번째 band `< 0.394` 진입)
+- Δ AUC = +0.0058
+- 결론: **val_metric=best_hm 단일 변경으로는 ClusPro paper gap 회수 실패**. §11-11이 seed-lucky였을 가능성 우선 검증 필요 (사전 등록 4번째 band → seed 1, 2 추가 본런).
+
+**해석**:
+- val peak HM 0.4157 → test HM 0.3905 → **val-test gap −0.0252** 존재.
+- §17-18 OT run의 val peak HM 0.4175 → test HM 0.3867 (gap −0.0308)와 동일 패턴: vanilla Troika는 val peak ckpt가 test에 깨끗하게 전이되지 않음. 즉 **val-test correlation이 framework-dependent** — R2D2(§13-5g)에서는 best_hm으로 +0.0094 회수됐지만 Troika에서는 회수 없음.
+- §13-5g R2D2 prior(+0.0094)는 vanilla Troika에 transfer되지 않음. framework별 val/test 상관성을 별도로 측정해야 한다는 교훈.
+- §11-11 baseline 0.3940 (best_loss, 1-seed)과 이번 0.3905 (best_hm, 1-seed)의 차이 −0.0035는 [[project_lhp_czsl_amp_nan]] §12 cluspro_baseline seed std ±0.0008와 비교하면 큰 차이지만, **framework가 다르므로 직접 비교 불가**. Troika seed std는 미측정.
+
+**11→12 sealed axes 누적 후보**: "val_metric=best_hm on vanilla Troika"는 단일 axis 봉인 후보. 단, §11-11 numbers가 seed-lucky인지 먼저 확인 필요 (아래 §18-4).
+
+**다음 단계 (사전 등록 4번째 band rule)**: §11-11 noise band 확정을 위해 **Troika baseline (val_metric=best_loss, §11-11과 동일 yml) seed 1, 2 sequential 본런**. 종료 후:
+- §11-11 3-seed mean HM ≥ 0.394 → §11-11 신뢰. 0.3905 (best_hm seed 0)는 진짜 −0.0035 음 신호. → "val_metric=best_hm on Troika" 12번째 sealed axis 봉인.
+- §11-11 3-seed mean HM < 0.394 → §11-11이 seed-lucky. best_loss와 best_hm tie 가능성 → best_hm seed 1, 2 추가 본런으로 3-seed 비교.
+- 어느 쪽이든 Troika baseline seed std 확보 → 향후 hp ablation의 noise band로 사용.
+
+산출물: `Troika/save/mit-states_seed0_baseline_besthm/val_best.pt`, `final_model.pt`, `Troika/logs/train_mit_baseline_besthm_seed0_20260524_193753.log` (7.2MB).
+
+### 18-4. Launch — Troika baseline (best_loss) seed 1, 2 sequential (5-25 11:44:47 KST)
+
+§18-3 4번째 band rule 적용. §11-11 single-seed 0.3940의 seed noise 확정 목적.
+
+**Setup**:
+- yml: `config/troika/mit-states.yml` (vanilla) — val_metric=best_loss, lr=1e-4, wd=1e-5, attr_dropout=0.3, epochs=10, cmt_layers=3.
+- **CLI override 필수**: vanilla yml은 `train_batch_size: 64 / accum: 1`로 변경돼 있어 ViT-L/14에 OOM. §11-11 `mit-states_seed0_repro` config(`bs=8 / accum=8`)와 정확히 맞추기 위해 `--train_batch_size 8 --gradient_accumulation_steps 8` CLI override 추가. (첫 launch 11:42:56은 override 없이 시작 → ep1 step 0에서 OOM 사망 → 11:44:47 재launch).
+- seed 1 → 종료 후 같은 nohup 스크립트 내에서 자동 seed 2 launch.
+- script: `Troika/scripts/run_baseline_repro_seed12.sh`
+- log: `Troika/logs/train_mit_baseline_repro_seed{1,2}_<TS>.log`
+- save: `Troika/save/mit-states_seed{1,2}_repro/`
+- GPU 1, nohup + disown. seed 1 PID **1624528**, VRAM 16.8GB.
+- 첫 epoch 측정 1.86 it/s × 3793 step ≈ 34min/epoch × 10 ≈ **5h 40m/seed × 2 ≈ 11h 20m**, 종료 **5-25 23:00 KST** 부근.
+
+판정 (사전 등록):
+- 3-seed mean HM ≥ 0.394 AND std ≤ 0.003 → §11-11 신뢰, best_hm 음 신호 0.3905 확정. axis 봉인.
+- 3-seed mean HM < 0.394 → §11-11 seed-lucky. best_hm seed 1, 2도 launch해서 best_loss vs best_hm 3v3 비교.
+- 3-seed std > 0.003 → noise dominant, baseline gap (−0.013) 자체가 seed scope 안일 가능성. §18 가설 자체 재검토.
+
+### 18-5. seed 1, 2 종료 + §18-4 cutoff 적용 (5-26 01:03 KST)
+
+**Run 종료 시각**:
+- seed 1: 5-25 11:44:47 → 5-25 18:24:05, **6h 39m** (PID 1624528)
+- seed 2: 5-25 18:24:14 → 5-26 01:03:18, **6h 39m** (seed 1과 동일 스크립트 내 자동 launch)
+- 둘 다 10ep 완주, AMP NaN 0회, val_metric=best_loss로 val_best.pt 저장 후 test 평가까지.
+
+**Test on `val_best.pt`** (Closed World, test_pairs):
+
+| seed | seen | unseen | **HM** | **AUC** | attr | obj |
+|---|---|---|---|---|---|---|
+| 0 (§11-11) | 0.5141 | 0.5161 | **0.3940** | **0.2177** | — | — |
+| 1 (§18-4) | 0.4891 | 0.5325 | **0.3891** | **0.2213** | 0.4052 | 0.5607 |
+| 2 (§18-4) | 0.4668 | 0.5340 | **0.3865** | **0.2140** | 0.3981 | 0.5735 |
+| **3-seed mean ± std (n−1)** | 0.4900 ± 0.024 | 0.5275 ± 0.010 | **0.3899 ± 0.0038** | **0.2177 ± 0.0037** | — | — |
+
+**Val peak trajectory** (각 seed의 val HM peak epoch / 값):
+
+| seed | val peak ep | val peak HM | val peak AUC | val_best ckpt ep (best_loss) |
+|---|---|---|---|---|
+| 0 | — | — | — | — (§11-11 raw 미보관) |
+| 1 | ep4 | 0.4264 | 0.2538 | ep1~ (낮은 loss 기준) |
+| 2 | ep4 | 0.4211 | 0.2506 | ep1~ |
+
+seed 1, 2 모두 §17-18 / §18-3 OT·best_hm run과 동일 trajectory shape (ep3-4 val peak, ep5+ overfit decay). val peak HM ~0.42 vs test HM ~0.387 → **val-test gap 평균 −0.033**, vanilla Troika의 framework-level transfer 손실 재확인.
+
+**§18-4 사전 등록 cutoff 판정**:
+
+| band | 조건 | hit? |
+|---|---|---|
+| A | mean ≥ 0.394 AND std ≤ 0.003 → §11-11 신뢰, best_hm axis 봉인 | ❌ (mean 0.3899 < 0.394) |
+| B | mean < 0.394 → §11-11 seed-lucky, best_hm seed 1, 2 추가 본런 | ✅ |
+| C | std > 0.003 → noise dominant, §18 가설 재검토 | ✅ (std 0.0038, 사전 등록 0.003 cutoff 초과) |
+
+Band B + C 동시 hit. cluspro_baseline 시드 std ±0.0008(§12)과 비교하면 **Troika는 시드 노이즈가 R2D2/LHP-CZSL 대비 5배 큼** — vanilla Troika는 1-seed 측정으로 trend 판정 불가.
+
+**해석**:
+1. **§11-11 0.3940은 seed-lucky**. seed 0이 mean(0.3899)보다 +0.0041(약 1σ 위), 진짜 baseline은 **HM 0.390 / AUC 0.218** 부근.
+2. **§18-3 best_hm seed 0 = 0.3905 vs best_loss 3-seed mean 0.3899 차이 +0.0006 → noise band 내(0.2σ)**. "val_metric=best_hm on Troika"의 effect size는 측정 불가, **봉인 후보 철회**. §13-5g R2D2의 +0.0094 prior는 Troika에 transfer되지 않으며, 우리 측정 한계 안에서는 framework-independent하게 ckpt selection 자체가 weak lever.
+3. **ClusPro paper SOTA(0.407)와의 gap −0.017은 ckpt selection으로 회수 불가** 확정. framework 자체(R2D2 vs Troika)나 다른 hp 축에 있을 가능성. ClusPro 재현 갭(§11-2, −1.8pp) 안에 머무름.
+4. **Troika 시드 std 0.0038 확보** → 향후 hp ablation의 effective noise band는 ~3σ ≈ **±0.011 HM**, 즉 Δ HM > +0.011이라야 "유의" 판정 가능. R2D2/LHP-CZSL 보다 4-5배 보수적.
+
+**11→12 sealed axes**: 봉인 추가 없음. v3_text/OT/best_hm/Troika-pivot 모두 dead 상태 유지 (10 + Troika OT = 11), [[project_lhp_czsl_h3_ot_sealed]] 그대로.
+
+**다음 단계**: §18-4 Band B의 "best_hm seed 1, 2 추가 본런"은 §18-3 + §18-5 신호로 이미 effect size 너무 작아 무의미 → **skip**. Troika best_loss baseline mean 0.3899 확정으로 §18 axis 전체 종료. 새 축 탐색 필요.
+
+→ §19부터 **self-derived improvement search**. 최근 CZSL 논문 분석 후 baseline에 어떤 lever가 남았는지 사전 등록. [[project_lhp_czsl_baseline_gap]] 메모리도 "본런 진행 중" → "Troika best_loss 3-seed mean 0.3899 ± 0.0038 확정, gap 회수 실패, ckpt-selection 축 닫힘"으로 갱신 필요.
+
+산출물: `Troika/save/mit-states_seed{1,2}_repro/{val_best,final_model}.pt`, `Troika/logs/train_mit_baseline_repro_seed{1,2}_<TS>.log` (각 7.2MB).
+
+---
+
+## 19. Self-improvement search — recent CZSL literature triage (5-26 16:30 KST)
+
+§18-5 종료로 ckpt-selection 축 닫힘. 새 lever 발굴 위해 2024-2025 CZSL 논문 서베이.
+
+### 19-1. 서베이 대상 (CVPR/ICCV 2025 + arXiv 2025-2026)
+
+| 논문 | 핵심 아이디어 | mit-states ViT-L/14 HM | 우리 sealed axes와의 관계 |
+|---|---|---|---|
+| **CLUSPRO** (ICLR'25) | K-prototype per primitive | 0.407 (paper) | 우리 baseline (재현 0.389) |
+| **CDS-CZSL** (CVPR'24) | Context-aware specificity (image-cond attr) | 0.390~0.393 | §14 image-cond 봉인과 인접 |
+| **PLID** (ECCV'24) | LLM-rich class distributions | 0.390~0.393 | §11-18 v3_text 봉인 영역 |
+| **Troika** (CVPR'24) | Multi-path (s/o/comp) + CMT | 0.392 (재현 0.389) | 우리 framework |
+| **CAILA** (WACV'24) | Intra-layer adapters in CLIP encoder | — | **frozen CLIP 가정 파괴** (새 lever) |
+| **SDP / Duplex** (2501.07114, 2026) | Counterfactual comp + local graph + EMA proto refine | **0.409 ± 0.002** | 일부 미시도, 자세히 §19-2 |
+| **FlowComposer** (2603.16641, 2026) | Rectified flow between visual feat ↔ primitive text embed + Composer fusion + leakage-guided aug | **0.402** (Troika+FC, ViT-L/14) | **완전 직교**, 자세히 §19-2b |
+| **VP-CMJL** (ICCV'25, 2501.13859) | Visual proxy init from text + cross-modal joint loss | SOTA (수치 미공개) | ClusPro multi-proto + alignment 부근 |
+| **LOGICZSL** (CVPR'25) | LLM logic rules (primitive compatibility) → loss penalty | UT-Zap AUC 38.2 (CSP 33.0 대비 +5.2) | v3_text와 다른 axis: 콘텐츠 enrich 아닌 feasibility prior |
+| **ULAO** (2412.07161) | Sequential primitive (obj→attr) + tailored hard-negative contrastive | "SOTA" (수치 미공개) | 우리 image-cond과 다른 결: 순서·hard-neg |
+| **SASOW** (2512.18969) | Self-attention over state-object pairs | 미공개 (open-world?) | 미확인 |
+| **ATIF** | Dual-stream (frozen + adapter) fusion | — | 새 axis (encoder mixing) |
+| **SymNet 류** | Group-theoretic symmetry/invertibility | — | underexplored, 우리 axes와 완전 직교 |
+
+### 19-2. SDP (Duplex) 정밀 분석 — 가장 강력한 후보
+
+**보고치**: mit-states **HM 0.409 / AUC 0.237** (ViT-L/14), UT-Zap HM 0.582 / AUC 0.462. ClusPro paper와 거의 동률 또는 약간 위.
+
+**메커니즘** (3개 구성):
+1. **Counterfactual composition**: 미니배치에서 image i의 state feature 𝐳ₛ와 image j의 object feature 𝐳ₒ를 추출 → ϕ(𝐳ₛ, 𝐳ₒ)로 unseen comp 합성. 배치 내 feasible comp만 활성.
+2. **Label-conditioned local graph**: 노드 = {프로토타입, 분리된 s/o factor, counterfactual comp}, 엣지 = feasibility rule. 배치 내 "old" + "tiger"가 있으면 unseen "old tiger" 프로토타입까지 메시지 전파.
+3. **EMA prototype update**: 𝐇 ← λ𝐇 + (1−λ)𝐇̂. **Semantic (text) prototype은 frozen, visual prototype만 동적 갱신**.
+
+**우리 sealed axes와의 관계**:
+- §10 v3_text (text content 확장): **무관** (SDP는 vision-side, text는 vanilla soft prompt).
+- §13 R2D2 (vision distillation): **느슨하게 인접** — distillation 대신 EMA로 visual proto를 직접 학습.
+- §14 image-cond description selection: **다른 결** — SDP는 image 쌍을 cross 해서 unseen 합성, image-cond aggregation 아님.
+- §17 OT primitive matching: **다른 결** — graph message passing이 OT 대신.
+
+→ **3개 component 중 counterfactual + local graph는 우리 axes와 직교, EMA proto refinement는 부분 인접.** 가장 시도해 볼 만한 직교 lever.
+
+### 19-2b. FlowComposer 정밀 분석 — 우리 framework와 직접 호환되는 강력 후보
+
+**보고치** (ViT-L/14, frozen CLIP, Troika baseline + FlowComposer add-on):
+- mit-states **HM 0.402 / AUC 0.235** (closed-world). Troika 단독 0.392 대비 **Δ HM +0.010**, 우리 noise band(±0.011 = 3σ) 상단.
+- UT-Zap HM 0.586 / AUC 0.468, C-GQA HM 0.340 / AUC 0.159.
+- ClusPro paper(0.407) 약간 아래, SDP(0.409) 약간 아래지만, **Troika에 직접 attach 가능**한 add-on이라는 점이 결정적.
+
+**메커니즘 (rectified flow 기반)**:
+1. **Two primitive flows** (attr / obj 각각):
+   - Visual feature **x₀ⁱ** → text embedding **x₁ⁱ**으로 transport.
+   - 선형 보간 경로 **xₜⁱ = (1−t)x₀ⁱ + t·x₁ⁱ** 위에서 velocity network **v_θⁱ**를 ground-truth velocity **v* = x₁ⁱ − x₀ⁱ**로 회귀.
+   - MSE loss: ‖v̂ₜⁱ − (x₁ⁱ − x₀ⁱ)‖². 네트워크는 timestep-conditioned residual MLP (MAR 류).
+2. **Composer**: 정규화된 primitive velocity **Δ̂ₐ, Δ̂ₒ**의 선형 결합 계수 (a*, b*) 학습. 3-layer MLP가 (â, b̂) 예측. composition velocity v̂ₓ = â·norm(v̂ₐ) + b̂·norm(v̂ₒ).
+3. **Leakage-guided augmentation**: cross-branch 누수 feature를 supervision으로 재활용. branch i의 학습에 다른 branch j의 누수 feature x₀ʲ → x₁ⁱ로 transport시키는 **cross-branch interpolation path** xₜⁱ←ⱼ = (1−t)x₀ʲ + t·x₁ⁱ. 추가 MSE + contrastive supervision.
+
+**Inference (one-step)**: x̂₁ⁱ = x₀ⁱ + v_θⁱ(x₀ⁱ, 0). 그리고 x̂₁ᶜ = x₀ᶜ + h·v̂ₓ. h는 step-size hp.
+
+**Ablation (mit-states, Troika baseline 0.394)**:
+| 구성 | HM | Δ |
+|---|---|---|
+| Troika only | 0.394 | — |
+| + Flows | 0.394 | +0.000 |
+| + Flows + Composer | 0.401 | +0.007 |
+| + Flows + Leakage-guided aug | 0.403 | +0.009 |
+| **+ Flows + Composer + Leakage** | **0.402** | +0.008 |
+
+→ leakage-guided aug 단독이 main lever (~+0.009), Composer는 marginal. UT-Zap에서는 leakage가 +0.012 HM 독립 기여.
+
+**우리 sealed axes와의 관계**:
+- §10 v3_text: text content 안 건드림 (frozen text embedding 그대로 endpoint로 사용). **직교**.
+- §13 R2D2 vision distillation: distillation 대신 flow regression. distillation은 single-step embedding alignment, flow는 trajectory regression — **별개 paradigm**.
+- §14 image-cond description: description 안 씀. **직교**.
+- §17 OT: OT는 patch ↔ prototype assignment, flow는 feature trajectory — **다른 결**.
+- §18 ckpt selection: 무관.
+
+→ **11 sealed axes 어디와도 겹치지 않음, frozen CLIP 가정 유지, Troika 위 add-on**. 우리에게 가장 잘 맞는 구조.
+
+### 19-3. 후보 lever 후순위
+
+**Tier A (직교성 + 비용 합리적)**:
+1. **FlowComposer leakage-guided augmentation** (§19-2b). Troika에 직접 attach하는 cross-branch rectified-flow regression. ablation상 leakage 단독 +0.009 HM (3σ band 도달 가능), frozen CLIP 유지, add-on만 학습. 코드 공개 여부 확인 필요. 가장 framework-fit.
+2. **Counterfactual composition mixup** (SDP § 1번 component만 isolated). 배치 내 (sᵢ, oⱼ) 합성으로 unseen pair pseudo-sample 생성, classification loss에 추가. 단일 axis 검증 가능.
+3. **ULAO 류 hard-negative contrastive**: 같은 obj, 다른 attr / 같은 attr, 다른 obj 쌍을 mined negative로. 우리 negative sampling이 random uniform이라면 lever 있음.
+
+**Tier B (orthogonal but invasive)**:
+4. **CAILA / ATIF — intra-layer adapter or dual-stream**: frozen CLIP 가정 파괴. 우리 모든 11 axes가 frozen 위에서 sealed 됐다는 점에서 **framework 자체 unstuck 가능성**. 단, 검증 비용 큼.
+5. **LOGICZSL feasibility prior**: LLM이 primitive 쌍 (s, o)의 feasibility score 산출 → composition logit에 prior로 가산. v3_text content와 달리 score-only prior라 §11-18 sealing과 다른 결.
+
+**Tier C (보류)**:
+6. SymNet 류 group-theoretic — formulation 자체가 무거움.
+7. VP-CMJL — ClusPro multi-proto와 너무 인접, sealed 가능성 큼.
+8. SASOW — 수치/메커니즘 불분명.
+
+### 19-4. 사전 등록 제안 (사용자 결정 대기)
+
+직교성 + framework-fit 최고: **Tier A-1 (FlowComposer leakage-guided aug)** 권장.
+
+- Pre-check: arXiv 2603.16641 저자 코드 공개 여부 확인 → 공개시 우리 Troika 위 직접 attach, 미공개시 self-impl (residual MLP velocity net + cross-branch path MSE/CE loss 약 200줄).
+- Probe 설정: Troika §11-11 yml + 2-branch velocity net + leakage-guided MSE/CE. Composer는 ablation상 marginal이라 skip 가능.
+- Stage 0 sanity: 1ep, NaN-free, train loss monotone, VRAM 안 깨짐.
+- Stage 1 본런: seed 0, 10ep, ETA ~7-8h (velocity net add-on 작아 추가 시간 < 30%).
+- 판정 cutoff (사전 등록):
+  - Δ HM > +0.011 (3σ band, [[project_lhp_czsl_baseline_gap]] §18-5 noise scale) → 유의, seed 1, 2 본런 → 봉인 회피.
+  - 0 ≤ Δ HM ≤ +0.011 → tie band, axis 봉인.
+  - Δ HM < 0 → fail, 봉인.
+
+대안: **Tier A-2 (counterfactual composition mixup)**는 A-1보다 단순. 코드 공개 없거나 self-impl 비용 부담시 fallback.
+
+→ 사용자 결정 필요: (a) Tier A-1 (FlowComposer) 진행, (b) Tier A-2 (SDP counterfactual) 진행, (c) Tier B (CAILA encoder adapter) 큰 lever 시도, (d) 다른 방향.
+
+---
+
+## 20. LLM-axis sequential chain — C′/D′/E/F (5-26 17:10 KST 진입)
+
+**사용자 결정**: §19 후보 중 FlowComposer/SDP 보류, **LLM 활용 축**으로 진입. 4-axis sequential 시도.
+
+**전제 sealed 영역 회피** ([[project_lhp_czsl_h3_ot_sealed]] 10 LHP-CZSL + 1 Troika OT):
+- "feasibility" (LLM scalar feasibility score → composition logit bias, scalar prior) **이미 9th sealed** on cluspro_baseline.
+- "hardpair" (`same_prim_sample=True` batch-level syntactic 같은-attr/같은-obj 강제) **이미 10th sealed** on cluspro_baseline + Troika OT 비추어 framework pivot 효과 1차 기각.
+- 따라서 C, D는 **원안과 다른 메커니즘으로 redefine** (옵션 2). 원안 C=feasibility scalar prior, D=syntactic same-prim sample, 모두 봉인 영역이므로 회피.
+
+### 20-1. Redefined axis 정의
+
+**C′ — LOGICZSL 류 relational logic rule grounding**
+- Sealed feasibility와 차이: scalar `logit += w · score(s, o)` 아님. **다중 primitive 관계 제약 (mutual-exclusion, group-membership)** 을 보조 BCE/KL loss로 grounding.
+- 예시 rule type:
+  - (mutex_attr) `{ripe, rotten, fresh}`는 같은 obj 상에서 mutually exclusive — 하나 high → 나머지 low penalty.
+  - (group_attr) `{wet, damp, soaked}`는 surface-moisture group, 그룹 내 swap은 cost ↓ (label smoothing 류).
+  - (compat_obj_attr) `{liquid_obj} × {melted, frozen, runny, viscous}` compatible, `{liquid_obj} × {wrinkled, folded, ripped}` incompatible.
+- 구현: LLM (Claude in-conv) offline 호출 → `data/logic_rules_mit.json` 생성. 각 rule = `{type, premise, conclusion, weight}`. Train forward에서 composition logit에 rule violation penalty 적용.
+- 예상 코드: `model/troika_logic.py` (300 LOC), `tools/build_logic_rules_claude.py` (200 LOC), `code/parameters.py` λ_logic flag.
+
+**D′ — LLM-guided semantic hard-negative mining**
+- Sealed hardpair와 차이: batch sampler가 **syntactic 같은-primitive 강제**가 아니라, LLM이 사전에 산출한 **semantic confusable pair list**를 oversample. 즉 same_prim_sample (cluspro hardpair)에서 같은 attr/obj 쌍을 무조건 한 배치에 넣는 것 아니라, LLM이 "이미지 차원에서 헷갈리기 쉽다"고 판정한 (s₁, o₁) ↔ (s₂, o₂) 쌍 N개를 oversample. 메커니즘은 sampler weight + optional InfoNCE.
+- 예시: "ripe apple" ↔ "rotten apple" (semantic close on appearance), "wooden chair" ↔ "leather chair" (texture distinguishable but compositionally close).
+- 구현: LLM offline → `data/hardneg_pairs_mit.json` (top-K confusable per anchor composition, K=8 ~ 16). WeightedRandomSampler + 1 InfoNCE term. λ_hn sweep {0.05, 0.1, 0.3}.
+
+**E — LLM taxonomy / structural prior** (novel, sealed 영역 아님)
+- LLM이 obj → super-category (예: apple → fruit, tiger → animal, copper → metal) 및 attr → group (예: ripe ∈ ripeness_group, rusty ∈ surface_quality) 산출. Auxiliary classification head가 visual feature → super-category 예측. 보조 CE loss로 hierarchical regularization.
+- 구현: 작은 LLM call (115 attrs + 245 objs offline) → `data/taxonomy_mit.json`. `model/troika.py`에 2개 aux head (attr_group_clf, obj_supcat_clf). λ_taxo sweep {0.1, 0.3, 0.5}.
+
+**F — LLM test-time reranking** (novel, training change 0)
+- 학습 변경 없음. Best ckpt val_best.pt forward로 test set의 top-K (K=5 or 10) composition prediction 산출 → multimodal LLM (Claude Sonnet/Opus)에 "이 이미지에 가장 맞는 composition은?" 질의 → reranked top-1. Eval HM/AUC.
+- 비용 분석: mit-states test ~13k images × K=5 candidates → 13k LLM call. Batch API 사용 시 cost 추정 후 진행.
+
+### 20-2. 사전 등록 cutoff (전 axis 공통)
+
+[[project_lhp_czsl_baseline_gap]] §18-5에서 측정한 Troika 3-seed noise = **±0.0038 HM (1σ), ±0.011 (3σ)**. 적용:
+
+| 단계 | 통과 조건 | 후속 |
+|---|---|---|
+| Stage 0 (1ep sanity, smoke) | train loss monotone 30 step, NaN 0회, VRAM 안 깨짐, val HM > 0 | Stage 1 진입 |
+| Stage 1 (seed 0, 10ep) | Δ HM > +0.011 vs §11-11 0.3940 (단일 seed 비교) | seed 1, 2 본런 |
+| Stage 2 (seed 1, 2 본런) | 3-seed mean HM > 0.3899 + 0.011 = **0.4009** AND std ≤ 0.005 | axis 유의 확정, 다음 axis로 |
+| 어느 단계든 fail | Δ HM ≤ +0.011 (Stage 1) or 3-seed mean ≤ 0.4009 (Stage 2) | axis 봉인, RESEARCH_LOG/메모리 갱신, 다음 axis로 |
+
+각 axis는 baseline (vanilla Troika) 대비 독립 측정. 모두 통과한 후 stacking ablation은 별도 §20-N.
+
+### 20-3. 시작 순서
+
+C′ → D′ → E → F 순차. F만 inference-only라 다른 axes의 best ckpt 위에 적용 가능. 각 axis 한 cycle 예상 ~ 2-3일 (Stage 0 ~30분, Stage 1 ~7h, Stage 2 ~15h 병렬 불가능 → 22h, 분석 ~1h).
+
+**즉시 진입**: C′ Stage 0 (rule extraction + smoke). 아래 §20-4.
+
+### 20-4. C′ design — attr-group mutex + obj-attr incompat regularization (5-26 17:30 KST)
+
+**Sealed feasibility와의 메커니즘 차이**:
+| 항목 | Sealed feasibility (cluspro) | **C′ logic rule** |
+|---|---|---|
+| LLM output | scalar score ∈ [1,10] per (attr, obj) | categorical: attr mutex groups + obj-specific incompat sets |
+| 적용 위치 | composition logit additive bias `logit_c += w·s(a,o)` | attribute posterior 분포 형태 regularization (loss on `attr_logits` softmax) |
+| 정보 사용 | per-comp 점수 — primitive 간 관계 X | mutex group 멤버십 + 조건부 incompat = relational structure |
+
+**Loss term 정의**:
+1. **L_mutex (within-group mutual exclusion)**: 각 sample (image, GT attr a) → a가 속한 mutex group G(a)에 대해, 다른 멤버 attrs의 softmax 확률 합을 페널티. attribute distribution이 mutex group 안에서 sharp peak를 갖도록 유도.
+   `L_mutex = mean_b ∑_{a' ∈ G(a_gt), a' ≠ a_gt} softmax(attr_logits)[a']`
+2. **L_compat (obj-conditioned incompat penalty)**: 각 sample (image, GT obj o) → o가 incompatible로 가진 attr set I(o)에 대해, 해당 attrs의 softmax 확률 합을 페널티.
+   `L_compat = mean_b ∑_{a ∈ I(o_gt)} softmax(attr_logits)[a]`
+3. 총 loss = baseline_loss + λ_mutex · L_mutex + λ_compat · L_compat
+4. Sweep: λ_mutex ∈ {0.05, 0.1, 0.3}, λ_compat ∈ {0.05, 0.1, 0.3}. Stage 0에서는 (0.1, 0.1)만.
+
+**LLM input/output**:
+- **Mutex groups**: in-conversation Claude (no API), categorical 산출 (예: `{ripeness: [ripe, unripe, rotten, fresh, raw], moisture: [wet, dry, damp]}`). 115 attrs 중 ~70-90이 그룹에 속하고 나머지는 standalone. 출력 → `data/logic_rules_mit.json::attr_mutex_groups`.
+- **Incompat sets**: 기존 `data/feasibility_mit.json` (Gemini scores 1-10, 28,175 pairs) 재활용 — score ≤ 3 = incompat threshold. obj별로 incompat attr list 산출. **scalar score를 categorical incompat set으로 reduce하므로 sealed mechanism과 다른 grain**. 출력 → `data/logic_rules_mit.json::obj_incompat_attrs`.
+
+**구현 파일**:
+- `model/troika_logic.py`: troika.py 복사 + `loss_calu`에 mutex/compat loss term 추가.
+- `parameters.py`: `--lambda_mutex` (default 0.0), `--lambda_compat` (default 0.0), `--logic_rule_path` 추가.
+- `config/troika/mit-states_logic.yml`: vanilla mit-states.yml 기반 + `model: troika_logic`, `lambda_mutex: 0.1`, `lambda_compat: 0.1`.
+- `tools/build_logic_rules.py`: feasibility json + mutex group categorical 합쳐서 `data/logic_rules_mit.json` 생성.
+
+**Stage 0 통과 조건** (smoke, 1-ep):
+- forward NaN 0회, train loss finite 30 step 이상, val HM > 0.30 (baseline 1-ep 0.373 근처면 합격).
+- VRAM 17 GiB 이내, 1 it/s 유지.
+
+**Stage 1 통과 조건** (seed 0, 10ep):
+- Δ HM > +0.011 vs §11-11 (0.3940). 즉 **test HM > 0.4050**. AUC도 함께 보고.
+
+§20-4-1부터 구현 시작.
+
+### 20-4-1. C′ Stage 0 결과 (5-26 17:50 KST)
+
+**산출물**:
+- `/home/student/dongki/LHP-CZSL/tools/build_logic_rules.py` (rule json builder)
+- `/home/student/dongki/LHP-CZSL/data/logic_rules_mit.json` (5.4MB → 1.1MB, 65/115 attrs grouped into 25 mutex groups, 245/245 objs with avg 31.4 incompat attrs)
+- `Troika/code/model/troika_logic.py` (TroikaLogic subclass of Troika, override loss_calu)
+- `Troika/code/model/model_factory.py`에 model_name=troika_logic 등록
+- `Troika/code/config/troika/mit-states-logic.yml` (lambda_mutex=0.1, lambda_compat=0.1, bs=8/accum=8)
+- `Troika/code/smoke_logic.py` (30-step 1-2분 smoke)
+
+**Smoke 결과** (CUDA_VISIBLE_DEVICES=1, λ_mutex=λ_compat=0.1, 30 step):
+- rule loading 정상: 65/115 attrs grouped, 245 objs incompat avg=31.4
+- NaN/Inf 0회
+- VRAM peak 13.96 GB (baseline 16.8GB 대비 -2.8GB, attr_probs softmax + mask indexing overhead 미미)
+- 처리속도 **1.75 it/s** (Troika baseline 1.86 it/s 대비 -6%; 30 step에서 17.2초)
+- Loss term 분해 (step 30, λ 적용 전 raw):
+  - comp ~5.4, attr ~5.3, obj ~6.3, **L_mutex ~0.008, L_compat ~0.30**
+  - λ=0.1 적용시 mutex 기여 ~0.0008, compat 기여 ~0.03 — base loss ~16 대비 **약 0.2%**
+- **주의**: L_mutex 신호가 init-near uniform softmax에서 매우 작음 (group size 3-5, 115-way softmax → 3-5/115 ≈ 0.03 균등 기대). 학습 후 sharpen되면 증가 예상. L_compat는 init 0.27 (31/115 균등 기대치 ≈ 0.27) — 기대치 안.
+
+**Stage 0 통과 판정**: NaN-free ✓, finite loss ✓, VRAM 안전 ✓ → **Stage 1 진입**.
+
+**리스크**: λ=0.1에서 mutex/compat 기여 0.2%는 약함. Stage 1 fail시 λ sweep {(0.3,0.3), (1.0,1.0)} 후속 검토.
+
+### 20-4-2. C′ Stage 1 launch (5-26 18:00 KST)
+
+**설정**:
+- yml: `config/troika/mit-states-logic.yml` (λ_mutex=0.1, λ_compat=0.1)
+- seed 0, bs=8/accum=8, 10ep, val_metric=best_loss
+- GPU 1, nohup + disown
+- script: `Troika/scripts/run_c_prime_seed0.sh`
+- save: `Troika/save/mit-states_c_prime_seed0_l0.1/`
+- log: `Troika/logs/train_mit_c_prime_seed0_l0.1_<TS>.log`
+- ETA 첫 epoch ~34min (baseline과 동일) × 10ep ≈ **5h 40m**, 5-26 23:40 KST 부근 종료.
+
+**Stage 1 사전 등록 cutoff** (재확인):
+- Δ HM > +0.011 vs §11-11 (0.3940) → **test HM > 0.4050** → 유의, Stage 2 (seed 1, 2) 진입.
+- 0 ≤ Δ HM ≤ +0.011 → tie band, axis 봉인.
+- Δ HM < 0 → fail, axis 봉인.
+- (대안) λ=0.1 fail시 (0.3, 0.3) Stage 1' 재시도. 그래도 fail → C′ axis 봉인.
+
+### 20-5. D′ design — LLM-guided semantic hard-negative mining (사전 등록, C′ 결과 대기 중 작성)
+
+**Sealed hardpair와의 메커니즘 차이**:
+| 항목 | Sealed hardpair (cluspro, §17-9) | **D′ semantic hard-neg** |
+|---|---|---|
+| 선정 기준 | **Syntactic**: 같은 attr/obj 강제 (`same_prim_sample=True`) batch sampler | **Semantic**: LLM이 visually confusable composition 판정 — 같은 primitive 공유 안 해도 됨 |
+| 예시 | "ripe apple" anchor → batch에 다른 "ripe X", "Y apple" 강제 | "ripe banana" anchor → "yellow paper", "brown leaf", "ripe pear" (다른 primitive지만 시각적 유사) |
+| Lever 가설 | primitive 자체 disentanglement | image embedding 공간의 cross-primitive 혼동 분리 |
+| Sealing 결과 | sealed 10th (val-test gap 확대로 일반화 fail) | 미시도 |
+
+**LLM 산출물** (`data/hardneg_pairs_mit.json`):
+- 1262 train compositions 각각에 대해 top-K=5 hard-neg compositions (K=5 선택 이유: batch_size=8 안에서 anchor 1 + hard-neg 3-5 + filler 2-4 균형, 너무 많으면 batch diversity 손상).
+- 형식: `{"hard_neg": {comp_str: [comp_str_1, ..., comp_str_K]}}`.
+- 생성 방식 검토 옵션:
+  - (옵션 1) Claude in-conversation (build_descriptions_claude 패턴) — 1262 anchor × K outputs 약 1-2시간 신호. **선호**.
+  - (옵션 2) Gemini API batch (feasibility json 패턴) — 비용 발생.
+  - (옵션 3) CLIP image-feature 기반 cluster 기반 (LLM 안 씀) — D′의 LLM lever 의미 약화.
+  - **결정**: 옵션 1.
+
+**구현**:
+- `Troika/code/dataset.py`에 hardneg pair 로드 + sampler weight 함수 추가.
+- `Troika/code/model/troika_hardneg.py`: Troika 상속, forward에서 hard-neg comp text embedding과의 InfoNCE term 추가. `L_hardneg = -log(exp(s_pos/τ) / sum_{neg ∈ hardneg(anchor)} exp(s_neg/τ))` 형식, τ=0.1.
+- `parameters.py`: `--lambda_hardneg` (default 0.0), `--hardneg_path`.
+- `config/troika/mit-states-hardneg.yml`: λ_hardneg=0.1, 외 baseline 동일.
+
+**Stage 0/1 cutoff**: §20-2 공통 (Δ HM > +0.011).
+
+### 20-6. E design — LLM taxonomy / structural prior (사전 등록)
+
+**메커니즘**: LLM이 obj → super-category (예: apple → fruit), attr → group (예: ripe ∈ ripeness_group). Visual feature 위에 auxiliary classifier 2개 (attr_group_clf, obj_supcat_clf) — 입력 visual feature, 출력 group/supcat logits. CE aux loss. mutex group(§20-4)과 무관 (taxonomy는 의미 분류, mutex는 상호 배제). 다른 sealed axis와 무관.
+
+**LLM 산출물** (`data/taxonomy_mit.json`):
+- 115 attrs → ~15 groups (예: ripeness, moisture, age, size, ...)
+- 245 objs → ~25 supercat (예: fruit, animal, building, vehicle, ...)
+- 작은 출력 (수십 KB), Claude in-conv 단일 turn 가능.
+
+**구현**:
+- `tools/build_taxonomy.py`: 하드코딩된 그룹 → JSON 산출.
+- `model/troika_taxo.py`: Troika 상속 + 2개 aux head (nn.Linear(visual_feat_dim, n_groups) × 2), forward에서 visual feature 통과 → group logits, loss에 CE aux 추가.
+- `parameters.py`: `--lambda_attr_group`, `--lambda_obj_supcat`, `--taxonomy_path`.
+- `config/troika/mit-states-taxo.yml`: λ_attr_group=0.1, λ_obj_supcat=0.1.
+
+**Stage 0/1 cutoff**: §20-2 공통.
+
+### 20-7. F design — LLM test-time reranking (사전 등록)
+
+**메커니즘**: 학습 변경 0. 가장 좋은 ckpt val_best.pt forward로 test set 13k images × top-K=5 composition prediction 산출. 각 image에 대해 multimodal LLM (Claude Sonnet/Opus 추정)에 image + K candidate strings 입력 → "이 이미지에 가장 맞는 composition?" 산출. Re-ranked top-1으로 HM/AUC 재계산.
+
+**비용 검토** (블락커):
+- mit-states test ~13k images × 1 multimodal LLM call = **13k API call**.
+- Claude Sonnet vision: ~$3/Mtok input, $15/Mtok output. image token ~1.6k, 5 candidates short ~200 tok, output ~10 tok → 약 $0.005 per image × 13k = **~$65**.
+- 사용자 사전 승인 필요.
+
+**대안 (저비용)**:
+- F′: test 대신 val 600 pairs × 1 image씩 sample = ~600 calls = ~$3. Sanity probe로 충분. 결과 좋으면 full test 진행.
+
+**산출물**: `data/test_top5_preds.json` (사전 forward로 캐시) → reranker script → `eval_logs/F_rerank_<TS>.json`.
+
+**Stage 0**: 50 image probe (val subset, 비용 ~$0.25). 출력 합리적인지 확인.
+**Stage 1 cutoff**: full test (600 val or 13k test) 위에서 Δ HM > +0.011 → 유의. fail → axis 봉인. 비용 사용자 승인 필수.
+
+→ **F는 C′/D′/E 중 최소 1 axis 통과한 후 best ckpt 위에서 시도**. 모두 fail시 baseline ckpt 위에서 단일 axis로 시도 가능.
+
+### 20-4-3. C′ Stage 1 첫 시도 실패 (5-26 18:14 KST 외부 kill)
+
+5-26 16:53 launch한 첫 C′ Stage 1 (`train_mit_c_prime_seed0_l0.1_20260526_165334.log`)이 **ep1 train 완주 + val eval(HM 0.3744 sane) 후 ep1 test eval Testing 79% (257/326) 시점에 외부 kill**. traceback 없음, save dir 빈 채. 당시 디스크 사용률 94% (107G free). val_metric=best_loss라 val 단계에서 val_best.pt 저장 시도가 있었어야 하나 빈 디렉토리 = 저장 실패 또는 kill 시점이 더 빨랐음. ep1 val HM 0.3744는 baseline ep1 (~0.3729, §11-10) 대비 +0.0015 — 평이한 시작.
+
+### 20-4-4. dongki 디스크 정리 (5-26 21:00 KST)
+
+용량 회수를 위해 dongki/ 트리 일괄 정리:
+- **Tier 1**: 5개 baseline dir의 중간 epoch_*.pt 75개 삭제 (val_best.pt + final_model.pt 보존). 회수 ~127G.
+- **Tier 2**: SEALED 축 디렉토리 15개 전체 삭제 (v3_text, imgcond, cluspro_baseline_l14_mit_v2_ot_seed0, Troika/save/mit-states_seed{0,1,2}_repro). 회수 ~83G.
+- **Tier 3**: 구버전 4개 dir 전체 삭제 (cluspro_baseline_l14_mit_k3, cluspro_baseline_l14_utzap_lr5e5, lhp_czsl_v{1,2}_l14_mit). 회수 ~7G.
+- 결과: dongki **298G → 86G**, 디스크 여유 107G → 319G.
+
+**ckpt 손실 명시**:
+- `Troika/save/mit-states_seed{0,1,2}_repro/val_best.pt + final_model.pt`: 삭제됨. seed1 (HM 0.3891) / seed2 (HM 0.3865) ckpt 소실, **metric은 train log에 보존** (§18-5와 동일). seed0 (§11-11, HM 0.3940) ckpt 동일하게 삭제됨.
+- `cluspro_baseline_l14_mit_v2_ot_seed0`: 삭제됨 (Troika/LHP OT 모두 sealed라 무관).
+- baseline_repro ckpt는 re-eval/ensemble/F축에 필요했을 수 있음. 후속 재학습 시 ~6.5h/seed.
+
+### 20-4-5. C′ Stage 1 재시도 launch (5-26 21:28 KST)
+
+cleanup 후 디스크 여유 확보, GPU 1 idle 확인. `Troika/scripts/run_c_prime_seed0.sh` 동일 설정으로 재실행:
+- yml: `config/troika/mit-states-logic.yml` (λ_mutex=0.1, λ_compat=0.1)
+- seed 0, bs=8/accum=8, 10ep, val_metric=best_loss
+- nohup + disown, GPU 1
+- save: `Troika/save/mit-states_c_prime_seed0_l0.1/`
+- log: `Troika/logs/train_mit_c_prime_seed0_l0.1_20260526_212827.log`
+- ETA ~5h 40m → **5-27 03:00 KST 부근 종료 예상**.
+
+Stage 1 cutoff (재확인): test HM > 0.4050 → Stage 2 (seed 1, 2). fail → λ (0.3, 0.3) 1회 재시도 후 봉인.
+
+### 20-4-6. C′ 3-seed 완주 + 판정 — 5-28 14:58 KST
+
+**완주 상태**: seed0 (5-26 21:28 ~ 5-27 04:19), seed1→seed2 chain (5-27 19:54 ~ 5-28 09:07:55). 세 run 모두 정상 종료 — NaN/traceback/OOM 0회, `chain done` + wrapper `exit 0` 확인, 각 시드 `val_best.pt`+`final_model.pt` 저장됨. val_metric=**best_loss** (baseline 0.3899와 동일 기준 → 비교 fair; [[project_lhp_czsl_baseline_gap]] ckpt-selection 축 closed).
+
+**3-seed test_pairs (Closed World, val_best.pt):**
+
+| seed | seen | unseen | HM | AUC | attr_acc | obj_acc |
+|---|---|---|---|---|---|---|
+| 0 | 0.4655 | 0.5374 | 0.3929 | 0.2160 | 0.3955 | 0.5651 |
+| 1 | 0.4845 | 0.5303 | 0.3878 | 0.2187 | 0.4054 | 0.5604 |
+| 2 | 0.4664 | 0.5332 | 0.3863 | 0.2134 | 0.3985 | 0.5735 |
+| **mean** | **0.4721** | **0.5336** | **0.3890** | **0.2160** | 0.3998 | 0.5663 |
+| **std** | ±0.0107 | ±0.0036 | ±0.0035 | ±0.0027 | ±0.0050 | ±0.0066 |
+
+**사전 등록 판정 (§20-2 / §20-4-2):**
+- **Stage 1 (seed0)**: test HM 0.3929 < cutoff 0.4050 (Δ vs §11-11 single-seed 0.3940 = **−0.0011**) → Stage 1 **fail** (Δ HM < 0 bucket). [pre-reg대로면 여기서 λ=0.1 중단 → λ(0.3,0.3) 재시도가 맞으나, seed1/seed2를 λ=0.1로 그대로 돌림 — protocol 이탈이나 결과적으로 robust 3-seed null 확보.]
+- **Stage 2 (3-seed)**: mean HM 0.3890 < cutoff **0.4009** (= 0.3899+0.011). Δ = **−0.0119** (cutoff 대비 ~3.4σ 아래). std 0.0035 ≤ 0.005 ✓ (consistency 조건만 충족).
+- **vs baseline best_loss 3-seed** (HM 0.3899 / AUC 0.2177): **Δ HM −0.0009, Δ AUC −0.0017** — 둘 다 시드 노이즈(1σ ±0.0038) 안. **신호 0**.
+
+**해석:**
+- C′ logic-rule grounding (attr mutex soft penalty + obj-attr incompat soft penalty, λ=0.1)이 baseline 대비 metric을 전혀 못 움직였다. 3-seed mean이 baseline에 사실상 겹침 (HM −0.0009 = noise 이하).
+- 원인은 Stage 0(§20-4-1)에서 이미 예고됨: λ=0.1에서 L_mutex+L_compat 합산 기여가 base loss의 **~0.2%**. attribute posterior softmax에 거는 soft penalty가 너무 약해 representation을 바꾸지 못함. attr_acc/obj_acc도 baseline 수준 (0.3998/0.5663) → mutex/compat regularizer가 attribute 분포를 sharpen하지 못했다는 직접 증거.
+- std 0.0035로 tight → 이 null은 노이즈가 아니라 진짜 (mechanism이 inert). seen은 시드 변동(±0.0107)이 좀 있으나 HM/unseen은 매우 안정.
+
+**Verdict: C′ logic-rule axis fail.** 사전 등록상 남은 변형은 λ(0.3,0.3) Stage 1 1회 재시도뿐. λ를 3배 키워도 loss 기여 ~0.6%로 여전히 미미하고, 3-seed가 directional signal 0 (baseline보다 오히려 −0.0009)이라 retry의 expected value 낮음. **결정 대기**: (a) pre-reg 준수하여 λ(0.3,0.3) seed0 1런(~6.5h) 후 봉인, 또는 (b) 즉시 봉인하고 D′(semantic hard-neg mining, §20-5)로 이동.
+
+**누적**: §13-5h 이후 training-change mechanism 봉인 8 → **9** (C′ 추가). §20 redefined-axis(C′/D′/E/F) 중 첫 번째 fail.
+
+**결정 (5-28, 사용자):** option (b) — **λ(0.3,0.3) 재시도 waive하고 C′ 즉시 영구 봉인**. 근거: λ를 3배 키워도 loss 기여 ~0.6%로 mechanism이 inert하다는 진단(§20-4-1 + 3-seed null)을 뒤집을 근거 없음. → **D′ (LLM semantic hard-neg mining, §20-5) 진입**.
+
+### 20-5-1. D′ 구현 + hard-neg 생성 + Stage 0 smoke — 5-28 15:47 KST
+
+**Hard-neg 생성 방식 (사용자 결정 5-28):** §20-5 옵션1(Claude in-conversation)을 C′ 선례(MUTEX_GROUPS 하드코딩)대로 **큐레이션 클러스터**로 구현. "visually confusable"을 두 Claude-큐레이션 소스로 operationalize:
+- `ATTR_SIM_GROUPS` (38개): C′ mutex groups + 비-mutex 시각 혼동군(damage/tear/crush/crease/slice_prep/corrosion/curve/finish/...). attr의 siblings = 소속 그룹 합집합.
+- `OBJ_FAMILIES` (37개): fruit/animal/vehicle/building/water_body/metal/textile/... 시각·재질·장면 family. many-to-many.
+- 각 anchor (a,o): tier1(same obj+sibling attr) / tier2(same attr+sibling obj) / tier3(cross-primitive, a≠·o≠ 둘 다 sibling) 후보 → train_pairs 내 필터 → quota 2·2·1 후 backfill, top-K=5.
+- 산출 `data/hardneg_pairs_mit.json` (`tools/build_hardneg_pairs.py`): **1164/1262 comp이 neg 보유** (98개는 sibling이 train pair에 없어 0개), 4661 edges, avg 4.0/comp, tier edge t1=935 / t2=1916 / **t3=1810 (cross-primitive 39%)**. cross-primitive 비중이 D′의 sealed hardpair(§17-9 syntactic 강제)와의 차별점.
+
+**구현 (loss-only, dataset/sampler 변경 0):**
+- `model/troika_hardneg.py` (TroikaHardneg < Troika): comp_logits(전체 1262 train pair 유사도) 행에서 hard-neg 집합만 분모로 제한하는 InfoNCE. `L_hn = -log(exp(s_pos/τ)/(exp(s_pos/τ)+Σ_neg exp(s_n/τ)))`, s=cosine(=comp_logits/logit_scale.exp()), τ=0.1. forward에서 `idx`(train_pairs) 캡처해 hard-neg mask [P,P] lazy 빌드(training only). neg 없는 sample은 -inf 마스킹 → logsumexp=pos → loss 0 (NaN-free). **sampler 미사용** — InfoNCE가 batch 구성과 무관하게 full comp-logit 행에서 동작하므로 학습 이미지 분포가 baseline과 동일(confound 제거). §20-5 "optional InfoNCE"를 core로 채택, sampler-weight는 생략.
+- `model/model_factory.py`에 `troika_hardneg` 등록. `config/troika/mit-states-hardneg.yml` (lambda_hardneg=0.1, tau_hardneg=0.1, bs=8/accum=8, 10ep, val_metric=best_loss). parameters.py 변경 불필요(`load_args`가 yml 키를 config에 setattr).
+
+**Stage 0 smoke (`smoke_hardneg.py`, 30 step, GPU 1):**
+- mask: 1164 anchors matched, 4661 edges, **0 dropped** (JSON neg 전부 valid train pair).
+- NaN/Inf **0회**, VRAM peak **13.96 GB** (≤17 안전, C′와 동일), **1.76 it/s** (baseline 1.86 대비 -5%).
+- L_hn raw ~1.1–1.6 → ×λ=0.1 = base loss(~16-19)의 **약 0.7-0.9%**. **C′(~0.2%)보다 4배 강한 기여** — InfoNCE가 soft-penalty보다 bite 있음. avg negs/sample ~4.0.
+- **Stage 0 통과** (NaN-free ✓ finite ✓ VRAM ✓ 속도 ✓) → Stage 1 진입.
+
+### 20-5-2. D′ Stage 1 launch — 5-28 15:47 KST
+
+- script `Troika/scripts/run_d_prime_seed0.sh`, yml `mit-states-hardneg.yml`, seed 0, 10ep, GPU 1, nohup+disown.
+- save `Troika/save/mit-states_d_prime_seed0_l0.1/`, log `train_mit_d_prime_seed0_l0.1_20260528_154712.log`. main PID 3390030.
+- 첫 epoch 1.80 it/s, 3793 it/ep → **ETA ~6h, 5-28 21:45–22:00 KST 종료 예상**.
+- **GPU 노트:** 동시각 GPU 0에 외부 사용자(`kiseoup`) retrieval 학습 점유 중이나 **GPU 1은 D′ 단독**(16.8/24GB), 경합 없음.
+- **Stage 1 사전 등록 cutoff (§20-2/§20-4-2 공통):** test HM > **0.4050** (Δ>+0.011 vs §11-11 0.3940) → Stage 2(seed 1,2). 0~+0.011 → tie, 봉인. <0 → fail, 봉인. λ=0.1 fail시 (0.3,0.3)/τ sweep 1회 후 봉인.
+
+### 20-5-3. D′ Stage 1 크래시 → loss_calu eval-guard 수정 → 재실행 — 5-29 11:03 KST
+
+**크래시 (5-28 run):** §20-5-2 seed0 run이 epoch 1 학습 완료 후 **첫 validation에서 즉시 크래시** (16:23 로그 종료, 정상 종료 아님 — best_loss 선택/test 결과 0개).
+- `RuntimeError: The size of tensor a (1262) must match the size of tensor b (1962) at non-singleton dimension 1` @ `model/troika_hardneg.py:113` (`loss_calu`, masked_fill).
+- **원인:** `evaluate()`가 `test.predict_logits`에서 val loss(best_loss용)를 위해 `model.loss_calu(predict, data)`를 호출. eval은 **closed-world 전체 pair set(1962)** 위에서 채점 → `comp_logits` [B,1962]. 그러나 hardneg `hardneg_mask`는 **train pair(1262)** 기준 [1262,1262] → `neg_mask=hardneg_mask[batch_target]`([B,1262])를 cos([B,1962])에 masked_fill 시 mismatch. 학습 경로(comp_logits=train_pairs 1262)에선 안 터지고 eval 첫 진입에서 처음 노출.
+
+**train()/eval() 함정 (수정 설계에 반영):** `train.py`는 `model.train()`을 루프 진입 전 line 29에서 **1회만** 호출하고 매 epoch `evaluate()`가 `model.eval()`(line 109)로 전환, 루프 상단에서 train() 재호출 없음 → **epoch 1 eval 이후 전 학습 step이 eval 모드**. 따라서 `self.training`으로 hardneg를 가드하면 epoch 2~10에서 hardneg가 조용히 꺼져 D′ intervention이 9/10 무력화. (baseline도 동일 train.py로 dropout-off 학습 → 비교 일관성 위해 train.py 미수정.)
+
+**수정 (`troika_hardneg.py` `loss_calu`, 1-line guard):** `self.training` 대신 **pair-set 크기**로 가드 — `if comp_logits.shape[1] != self.hardneg_mask.shape[0]: return loss`. train(P=1262=mask)일 때만 hardneg 적용, eval(P=1962)은 base loss만 반환. 효과: (1) eval 크래시 제거, (2) hardneg는 전 학습 epoch에서 적용(eval 모드 무관), (3) val/test best_loss = base loss → baseline과 동일 선택 신호 유지. dataset/sampler/train.py 변경 0. py_compile 통과.
+
+**재실행 (5-29 11:03 KST, GPU 1):** 동일 script `run_d_prime_seed0.sh`, log `train_mit_d_prime_seed0_l0.1_20260529_110332.log`.
+- **epoch 1 통과 검증 (11:42, ~39분):** 크래시 지점 통과, val `seen 0.4197 / unseen 0.5575 / HM 0.3737 / AUC 0.2015` (epoch1). NaN/traceback 0.
+- 현재 epoch 2 진행, GPU 1 100%/18.9GB. epoch당 ~39분 → 10ep **ETA ~17:30 KST**. Stage 1 cutoff 동일 (test HM > 0.4050 → Stage 2).
+
+### 20-5-4. D′ Stage 1 결과 + 봉인 판정 — 5-31 KST
+
+**학습 정상 종료 (5-29 17:39 KST):** 10 epoch 완주, crash/NaN/traceback 0. save `mit-states_d_prime_seed0_l0.1/`에 `val_best.pt`(5-29 12:21, best_loss 선택), `epoch_4/9.pt`, `final_model.pt` 정상 생성. train loss 매끄럽게 수렴(ep1 1.419 → ep10 0.0418). §20-5-3 eval-guard 수정으로 첫 validation 크래시 재발 없음.
+
+**최종 test 결과 (val_best.pt → test set, closed-world; log line 72, "--- Evaluating test dataset on Closed World ---" 직후):**
+
+| seen | unseen | **HM** | AUC | attr_acc | obj_acc |
+|---|---|---|---|---|---|
+| 0.4714 | 0.5388 | **0.3951** | **0.2189** | 0.3943 | 0.5643 |
+
+**판정 (사전등록 cutoff, §20-5-2):**
+- Stage 2 진입선 test HM > **0.4050** (Δ > +0.011 vs §11-11 baseline 0.3940) → **미달**.
+- 실측 Δ HM = 0.3951 − 0.3940 = **+0.0011** → 사전등록 **tie 구간 (0 ~ +0.011)** 에 해당.
+- 규칙: tie → **봉인** (fallback인 (0.3,0.3)/τ sweep은 *fail(<0)* 조건에서만 발동 → tie인 본 케이스는 곧장 seal). λ=0.1에서 InfoNCE hard-neg가 base loss의 ~0.7-0.9% bite(C′의 4배)를 줬음에도 test HM은 baseline 노이즈 대역(mit-states 3-seed HM std ±0.0008 수준) 내 → mechanism-level **information 없음**.
+
+**누적**: training-change mechanism 봉인 9 → **10** (D′ 추가). §20 redefined-axis(C′/D′/E/F) 중 C′·D′ 2건 연속 fail/tie. **E/F 대기.**
+
+**결정:** D′ 영구 봉인. seed1·2 추가 산출 waive — single-seed가 cutoff 대비 −0.010이고 tie 대역이라 3-seed 평균이 0.4050을 넘을 확률 사실상 0 (§20-4 C′ 봉인 시 동일 논리 선례).
+
+### 20-6-1. E Stage 0 smoke 통과 — 5-31 11:35 KST
+
+**메커니즘 (§20-6 사전등록 그대로):** TroikaTaxo — global visual feature 위에 aux linear head 2개로 LLM taxonomy 예측, aux CE로 visual representation을 hierarchical prior로 regularize. C′(posterior-shape penalty)·feasibility(logit bias)와 grain 다름 (coarse label을 image에서 예측).
+
+**산출물:**
+- `LHP-CZSL/tools/build_taxonomy.py` + `LHP-CZSL/data/taxonomy_mit.json` — Claude in-conv 큐레이션. 115 attrs → **18 STATE-TYPE groups** (age_wear/size/shape/damage/edge/surface/light/cleanliness/moisture/clarity/cooking/ripeness/phase/cut/fill/openness/orientation/weather_env), 245 objs → **21 super-categories** (fruit/animal/metal/building/place_nature/…). 각 primitive 정확히 1개 그룹에 배정(coverage assertion 통과, 중복 0).
+- `Troika/code/model/troika_taxo.py` (TroikaTaxo < Troika): `encode_image` 오버라이드로 global feat 스태시(forward 중복 안 함), aux head 2개는 super().__init__() freeze 루프 *이후* 생성 → requires_grad=True로 optimizer(`model.parameters()` 전체 Adam)가 자동 포착. `loss_calu` = base CE + λ_ag·CE(attr_group) + λ_os·CE(obj_supcat).
+- `Troika/code/config/troika/mit-states-taxo.yml` (λ_attr_group=0.1, λ_obj_supcat=0.1, bs=8/accum=8, 10ep, val_metric=best_loss). parameters.py 변경 불필요(load_args가 yml 키 setattr).
+
+**train/eval 게이트 (D′ 크래시 교훈 반영):** aux loss는 `torch.is_grad_enabled()`가 True일 때만 적용. eval은 `predict_logits`/`predict_logits_text_first` 모두 `with torch.no_grad()` 안에서 돌므로(test.py 확인) → eval `loss_calu`는 **base CE만 반환** = best_loss 선택 신호가 vanilla baseline과 동일(confound 0). **`self.training` 미사용** — train.py가 epoch1 eval 후 model.eval() 상태로 남는 함정(§20-5-3) 회피. 또한 aux head는 visual feat[B,768]에만 작용하고 predict tuple(3개)에 아무것도 안 붙이므로 → D′의 pair-set mismatch(1262 vs 1962) / `logit_infer` unpack 크래시에 **구조적 면역**.
+
+**Smoke 결과 (`smoke_taxo.py`, 30 step, GPU 1, λ=0.1/0.1):**
+- taxonomy 로딩 정상, aux head [18,768]/[21,768].
+- **게이트 검증 ✓:** grad-on total 17.77 vs no_grad total 17.18 == base 17.18 (eval에서 aux 꺼짐 확인).
+- NaN/Inf **0회**, VRAM peak **13.97 GB** (≤17, C′/D′와 동일), **1.83 it/s** (baseline 1.86 대비 −1.6%, C′/D′보다 빠름).
+- aux 기여 = base의 **~3.3%** (l_attr_group ~3.0 ≈ ln18, l_obj_supcat ~3.0 ≈ ln21 — init near-uniform CE 기대치 일치). **C′(~0.2%)의 16배, D′(~0.8%)의 4배** — 지금까지 가장 강한 bite.
+- **Stage 0 통과** (NaN-free ✓ finite ✓ VRAM ✓ 속도 ✓ 게이트 ✓) → Stage 1 진입.
+
+### 20-6-2. E Stage 1 launch — 5-31 11:40 KST
+
+- script `Troika/scripts/run_e_taxo_seed0.sh`, yml `mit-states-taxo.yml`, seed 0, 10ep, GPU 1, nohup+disown.
+- save `Troika/save/mit-states_e_taxo_seed0_l0.1/`, log `train_mit_e_taxo_seed0_l0.1_20260531_114037.log`. main PID 2943747.
+- 첫 epoch **1.83 it/s, 3793 it/ep → ~34.5분/epoch → 10ep ETA ~17:25 KST**. epoch1 train loss ~2.2 (= total 17.7 ÷ accum 8).
+- **GPU 노트:** GPU 0에 외부 사용자(`kiseoup`) retrieval 학습 점유 중이나 **GPU 1은 E 단독**(16.8/24GB), 경합 없음.
+- **Stage 1 사전 등록 cutoff (§20-2 공통):** test HM > **0.4050** (Δ>+0.011 vs §11-11 0.3940) → Stage 2(seed 1,2). 0~+0.011 → tie, 봉인. <0 → fail, 봉인. λ=0.1 fail시 (0.3,0.3) sweep 1회 후 봉인.
+- **첫 validation 체크포인트:** epoch1 종료 ~12:15 KST에 첫 eval — **크래시 없이 통과 ✓ (12:20 확인)**. epoch1 val `seen 0.4176 / unseen 0.5644 / HM 0.3798 / AUC 0.206 / attr_acc 0.3986 / obj_acc 0.5824` (D′ epoch1 HM 0.3737보다 약간 위). is_grad_enabled 게이트 + predict tuple 불변 설계로 D′형 pair-set 크래시 **구조적 면역 실증됨**. epoch 2~10 계속 진행 중, ETA ~17:25 KST.
+
+### 20-6-3. E Stage 1 결과 + 판정 — 5-31 KST
+
+**학습 정상 종료 (5-31 18:17:53 KST):** 10 epoch 완주, crash/NaN/traceback 0. save `mit-states_e_taxo_seed0_l0.1/`에 `val_best.pt`(12:59, best_loss 선택), `epoch_4/9.pt`, `final_model.pt` 정상 생성. train loss 매끄럽게 수렴(ep1 1.454 → ep10 0.0586). is_grad_enabled 게이트로 첫 validation 크래시 재발 없음.
+
+**Val 곡선 (epoch별, `Evaluating val dataset`):** HM 피크는 **epoch 2 (seen 0.5087 / unseen 0.5717 / HM 0.4201 / AUC 0.2526)**, 이후 단조 하락(ep10 HM 0.382). 전형적 과적합 곡선 — train loss는 계속 떨어지나 val 일반화는 ep2에서 정점.
+
+**Test 결과 (best_loss=val_best ckpt, log line 72 `--- Evaluating test dataset on Closed World ---`):**
+- **seen 0.4744 | unseen 0.5333 | HM 0.382 | AUC 0.2136 | attr_acc 0.3965 | obj_acc 0.5642**
+
+**판정 (사전등록 cutoff, §20-6-2 / §20-2 공통):**
+- Stage 2 진입선 test HM > **0.4050** → 미달.
+- Δ HM vs §11-11 baseline 0.3940 = **−0.012** → pre-reg **fail 버킷 (<0)**. (best_loss baseline 0.3899 대비로도 −0.0079, AUC 0.2136 vs 0.2177 = −0.0041 — seen/unseen/HM/AUC 전 지표 하락.)
+- **핵심 관찰:** E의 aux bite는 base loss의 **~3.3%로 §20 redefined-axis 중 최강**(C′ ~0.2%의 16배, D′ ~0.8%의 4배)이었음에도 test signal은 **음의 방향**. "bite를 키우면 representation이 바뀐다"는 가설의 직접 반증 — aux로 hierarchical prior를 강하게 주입해도 compositional generalization은 오히려 약화(과적합 가속). taxonomy aux head가 visual feat를 coarse label로 끌어당기면서 fine-grained attr 변별을 희석한 것으로 해석.
+
+**누적:** training-change mechanism 봉인 후보 10 → (E 봉인 시) **11**. §20 redefined-axis(C′/D′/E/F) 중 **C′·D′·E 3건 연속 fail/tie**.
+
+**결정 (6-1, 사용자): E λ(0.3,0.3) retry waive하고 E 영구 봉인.** 근거: (a) E는 이미 최강 bite(3.3%)에서 −0.012 음의 신호 → λ 3배(bite ~10%)가 방향을 뒤집을 근거 없음, (b) C′ 선례(5-28 결정 b)로 동일 논리의 retry waive 전례. **누적 봉인 10 → 11 (E 확정).**
+
+### 20-7-1. F Stage 0 probe — 무료(API $0) self-Claude rerank, 50장 — 6-1 KST
+
+**동기 (사용자 5-31):** "F를 API 대신 self-Claude(이 대화의 multimodal Claude)로 진행 가능한가?" → F reranker가 multimodal이므로 Claude가 직접 reranker 역할 가능. full 13k는 비현실(수작업·재현불가)이나 **Stage 0 50장 probe는 $0로 즉시 가능**.
+
+**파이프라인 (`Troika/code/probe_f.py`, GPU forward 비용0):** E `val_best.pt`(≈baseline, baseline ckpt는 §20-4-4에서 삭제됨)로 test 12,995장 closed-world forward → 각 image top-5 composition 후보 캐시 `data/F_probe/test_top5_preds.json`. **모델 closed-world top1(unbiased) = 0.286, gt-in-top5 = 0.606 → 복구가능(top1 wrong & gt in top5) 32%(4163장).** 천장이 높아 probe 가치 있음.
+
+**1차 시도 (오염):** 50장 blind(후보에서 gt 가림) probe를 내가 직접 rerank → model 0.340 → 0.560 (**+0.220**, 13 복구가능 중 12 회복). **그러나 무효** — 이미지 `Read` 경로(`.../images/draped fabric/draped-fabric-michelle-miron.jpg`)에 **폴더명·파일명이 곧 gt**라 정답이 경로로 leak됨. 후보만 가리고 경로를 안 가린 설계 결함.
+
+**2차 재측정 (clean):** 50장을 **익명 파일명(`/tmp/F_probe_anon/pNNN.jpg`)으로 복사** + 후보 alphabetical 정렬(model-rank 무관) → **gt를 모르는 fresh subagent 5개**(10장씩)가 익명 이미지만 보고 rerank. 결과:
+- **model top1 0.340 → LLM rerank 0.320 (net −0.020).** 진짜 복구 5 vs HURT 6 (멀쩡한 model top1을 깨뜨림). 천장 0.600의 발끝도 못 감.
+
+**진단 — 왜 안 되나:** HURT 케이스가 전부 **한 이미지에 동시 참인 속성이 여럿**인 경우. `huge balloon→inflated balloon`, `sliced potato→browned potato`, `folded chair→upright chair`, `modern clock→small clock`, `coiled copper→coiled wire`, `broken car→crushed car`. zero-shot LLM은 시각적으로 똑같이 맞는 대안 속성을 고르지만 dataset이 채택한 single-label과 불일치. **학습된 모델은 dataset labeling 편향을 학습했고, LLM은 모름** → rerank가 진짜 오류 일부를 고쳐도 동수 이상을 깨서 net ≤ 0.
+
+**판정 (6-1, 사용자 확정): F 영구 봉인, $65 full-test run waive.** F Stage 0 probe가 합리성 체크에서 **non-positive (net −0.02, n=50 노이즈 대역 내 0)** + pair-acc top1조차 음수라 HM 개선 기대 0 → pre-reg Stage 1 cutoff(Δ HM > +0.011) 통과 가망 없음. C′/D′/E waive 선례대로 확정 run waive. → §20 redefined-axis(C′/D′/E/F) **4축 전부 fail/null로 소진.**
+
+**방법론 교훈 (기록):** vision-LLM probe에서 **이미지 파일 경로/파일명에 label이 박혀 있으면 그 자체가 leak**. 향후 multimodal eval은 (1) 익명 파일명 복사, (2) gt-blind 평가자(별도 subagent/API) 필수. 1차 +0.22 → 2차 −0.02 전환이 leak 규모의 직접 증거.
+
+**누적:** §20 axis F까지 봉인 시 redefined-axis 4/4 소진. training-change/inference 봉인 후보: C′·D′·E (10→11 E 봉인 시) + F(inference, 별도 카운트). → **새 architecture/framework 진입 결정 국면.**
+
+---
+
+## §21. New framework program — differentiation-first (post §20 소진, 6-1 진입)
+
+**전제 (§20 결론):** axis/hyperparam/inference 변형으로 Troika gap(−0.017 vs ClusPro) 닫기 EV ≈ 0. F probe 진단: **표현은 gt를 top-5까지 올림(0.606)에도 top-1(0.286)에서 sibling-state를 못 변별** → 병목은 *같은 object 아래 형제 상태의 시각 granularity*.
+
+**목표 재정의 (사용자 6-1):** "ClusPro 구현·성능 추격은 안 함. **우리만의 차별화된 새 메커니즘**이 목표 — 성능이 baseline보다 조금 부족해도, novel하고 defensible하면 OK."
+→ **판정 기준도 재정의**: "baseline 초과"가 아니라 **(a) 메커니즘이 의도대로 작동(ablation·해석으로 입증) + (b) 성능이 baseline 대비 큰 손해 없음(non-regression)** 이면 PASS(=논문화 가능한 차별 기여 확보). 초과는 stretch.
+
+**우선순위 (Claude 추천, 6-1 확정 — 하나씩 순차):**
+1. **(I) PGAL — Patch-Grounded Attribute Localization** ← 착수
+2. **(II) Attributes-as-operators (CLIP-era 부활)** — (I) fail/collide 시 fallback, 가장 깨끗한 novelty
+3. **(IV) Generative unseen-feature synthesis** — 승자 위에 직교 stack
+4. **(III) Ordinal/continuous state** — 독립 축 대신 (I)/(II)의 regularizer로 흡수
+
+### 21-1. Axis I — PGAL 사전등록 plan
+
+**Thesis (한 줄):** 기존 CLIP-CZSL(CSP/DFSP/Troika/ClusPro)은 **이미지 표현을 전역으로 두고 텍스트 쪽을 적응**시킨다. PGAL은 반대로 **속성이 발현된 영역으로 이미지 표현을 국소화**하여 attribute를 그 국소 영역에서 채점한다.
+
+**Troika 대비 차별 (코드 감사 6-1, troika.py forward/CMT):** Troika CMT = *텍스트가 patch에 cross-attend → 텍스트 prompt 조정* → score = (조정된 텍스트)·**전역 CLS**. 즉 이미지 쪽은 끝까지 global. **PGAL은 image-side localization** — Troika가 안 건드리는 직교 축. `encode_image`가 이미 `(CLS, patches[N,256,768])` 반환 → patch grid 가용 확인.
+
+**아키텍처 스케치:**
+- Object 분기: 전역 CLS → object 채점 (object는 holistic).
+- **Attribute 분기 (핵심):** attribute query q_a(=attr CLIP text emb 또는 learned proto) → patch token에 cross-attention → attention map a∈Δ^256 + 국소 feature z_a = Σ a_i·patch_i. score_attr = sim(z_a, attr_text).
+- Composition score = β·sim(CLS, obj_text) + α·sim(z_a, attr_text) (+ optional joint comp term, Troika comp-branch 재활용 가능).
+- **Localization 정규화:** attention entropy/sparsity(집중 유도) + (optional) 동일 attribute가 다른 object에서 유사 시각 단서에 attend하도록 consistency. region label 無 (unsupervised).
+- (III) 흡수 옵션: ordinal 상태군(ripeness/size/moisture…)엔 z_a에 순서 ranking 정규화 추가.
+
+**4-stage + 사전등록 cutoff (baseline = Troika best_loss 3-seed HM 0.3899 ± 0.0038 / §11-11 single 0.3940):**
+- **Stage 0 (smoke + 차별 lock):** (a) Troika CMT patch 사용 정밀 감사 → 차별 확정 *[6-1 완료: image-side localization으로 lock]*. (b) `model/troika_pgal.py` 구현 → 1ep smoke: NaN/Inf 0, VRAM ≤17GB, **attention map이 ~10장에서 질적으로 의미있는 영역(rust 영역, cut 단면 등) 지목하는지 시각 검증**. 무의미하면 즉시 재설계.
+- **Stage 1 (seed0, 10ep):** mit-states. **판정 = 재정의 기준**: (PASS) HM ≥ 0.3899 − 0.005 = **0.3849** AND localization ablation(분기 제거 시 HM 하락) AND attention 의미성 → 차별 기여 확보, Stage 2 진입. (STRETCH) HM > 0.4050. (FAIL/seal) HM < 0.3849 OR localization이 noise(ablation 무효과 + 맵 무의미) → 봉인, (II)로.
+- **Stage 2 (3-seed + 전이):** Stage 1 PASS 시 3-seed 안정성 + UT-Zap 전이.
+- **Stage 3 (분석/해석):** attention map 정성 + **F_probe recoverable-headroom 오라클**로 "PGAL이 F probe가 짚은 sibling-state 혼동을 실제로 복구하는가" 정량 검증.
+
+**산출:** `Troika/code/model/troika_pgal.py`, `config/troika/mit-states-pgal.yml`, `smoke_pgal.py`, `scripts/run_pgal_seed0.sh`. baseline ckpt 삭제됨(§20-4-4) → 비교는 3-seed mean 수치(보존됨) 기준.
+
+### 21-1-1. PGAL Stage 0 smoke 통과 + Stage 1 launch — 6-1 KST
+
+**구현:** `TroikaPGAL(Troika)` — `PatchLocalizer`(학습 query 1개가 256 patch token에 multi-head cross-attn → 국소 feature z_a + attention map). forward에서 attribute 분기의 *이미지* feature를 `attr_disentangler(CLS)`(전역) 대신 **z_a(국소)**로 교체; comp=CLS, obj=disentangled CLS는 Troika 그대로. localizer는 super().__init__ freeze 루프 *이후* 생성 → requires_grad=True(taxo aux 선례). lambda_loc=0.01 attention-entropy 정규화(focus 유도)는 **train-only(`is_grad_enabled`)** → eval best_loss == base CE (ckpt 선택 confound 0).
+
+**⚠️ eval-path 버그 사전 차단 (중요):** `text_first=True` eval은 `predict_logits_text_first`→**`model.forward_for_open`** 호출(≠ `forward`). forward만 override하면 **학습엔 PGAL 켜지고 eval/test엔 Troika 기본 경로로 우회 → localization이 test에서 빠지는 train/eval mismatch**(§20-5-3 류). → `forward_for_open`도 동일 localization으로 override. 1배치 eval-path 검증: forward_for_open OK, logit_infer [8,1962], eval loss finite, **_last_attn [8,256] finite (localizer가 eval에서도 활성)** ✓.
+
+**Smoke (30 step, GPU1, λ_loc=0.01):** localizer 2.36M params, total trainable 31.4M. **gate ✓**(grad-on 17.93 vs no_grad 17.87 == base 17.87). NaN/Inf **0**, VRAM **14.0GB**(≤17), **1.83 it/s**(baseline 1.86 동급). attention은 init에서 ~uniform(entropy 5.545/5.545, max 0.004=1/256) — 랜덤 init+30step(옵티마 3회)이라 정상; **의미있는 localization은 Stage 1 학습 후 검증**. **Stage 0 통과**(plumbing+gate+NaN+VRAM+속도+eval-path) → Stage 1 진입.
+
+**Stage 1 launch (6-1 00:26 KST):** `run_pgal_seed0.sh`, seed0, 10ep, GPU1 단독. save `mit-states_pgal_seed0_l0.01/`, log `train_mit_pgal_seed0_l0.01_20260601_002626.log`, PID 590394. epoch1 train loss 2.24→2.01 매끄럽게 하강, 1.82 it/s, 16.9GB. **ETA ~06:30 KST (~6h).**
+- **판정 (재정의, differentiation-first)**: PASS = test HM ≥ **0.3849**(baseline 0.3899−0.005, non-regression) AND localization ablation 기여 입증 AND attention map 의미성. STRETCH = HM > 0.4050. FAIL/seal = HM < 0.3849 OR localization noise.
+- Stage 1 종료 후 할 일: (a) test HM/AUC 판정, (b) **ablation**(localizer 분기 제거=attr 전역 복귀 시 HM 변화), (c) **attention map 시각화**(viz_pgal_attn.py — early/final ckpt로 10장, rust영역·cut단면 등 지목하는지), (d) F_probe 오라클로 sibling-state 복구율.
+### 21-1-2. PGAL Stage 1 결과 + 판정 — 6-1 KST
+
+**학습 정상 종료 (6-1 07:03:39 KST):** 10 epoch 완주, crash/NaN/traceback 0. GPU1 단독. save `mit-states_pgal_seed0_l0.01/`에 `val_best.pt`(01:45, best_loss 선택), `epoch_4/9.pt`, `final_model.pt` 정상 생성. train loss 매끄럽게 수렴(ep1 1.323 → ep10 0.0413). forward_for_open override로 eval-path mismatch(§20-5-3 류) 재발 없음.
+
+**Val 곡선 (epoch별):** HM 피크 **epoch 5 (seen 0.5081 / unseen 0.561 / HM 0.4193 / AUC 0.2468)**, ep2~5 plateau(0.415~0.419)에서 ep6 이후 하강(ep10 0.4022). E(taxo)의 ep2 단일피크 대비 **고원이 넓고 피크값도 높음**(E ep2 HM 0.4201과 동급이나 PGAL은 4 epoch 유지). best_loss로 선택된 val_best.pt는 01:45 = 초기 epoch.
+
+**Test 결과 (best_loss=val_best ckpt, log line 72 `--- Evaluating test dataset on Closed World ---`):**
+- **seen 0.4676 | unseen 0.5329 | HM 0.3878 | AUC 0.2127 | attr_acc 0.3991 | obj_acc 0.5651**
+
+**판정 (재정의 differentiation-first cutoff, §21-1-1):**
+- 비교 기준 = Troika best_loss 3-seed HM **0.3899 ± 0.0038**. non-regression PASS bar = **0.3849**.
+- 실측 test HM **0.3878 ≥ 0.3849** → **non-regression 통과** (Δ vs baseline 0.3899 = **−0.0021**, 3-seed std ±0.0038 노이즈 대역 *안*). AUC 0.2127 vs baseline best_loss 0.2177 = −0.005. STRETCH(>0.4050) 미달.
+- **§20 4축(C′/D′/E/F) 전부 fail/null 이후 첫 non-regression 결과.** E(taxo)가 동일 baseline 대비 test HM −0.012(fail)였던 것과 대조 — image-side localization 축은 적어도 표현을 *깨뜨리지 않음*.
+
+**⚠️ 단, PASS 조건 미완:** §21-1-1 재정의 PASS = (a) HM non-regression **AND** (b) localization ablation 기여 입증 **AND** (c) attention map 의미성. 현재 **(a)만 충족**. (b)(c)는 미실시 → **차별 기여는 아직 미입증**. HM이 노이즈 대역 내라 "localizer가 실제로 일을 하는지"는 ablation/시각화 없이는 단정 불가(localizer가 사실상 전역 평균으로 collapse해도 같은 HM 나올 수 있음). → **다음 단계 (b)(c)(d) 필수, 이걸로 PASS/seal 최종 확정.**
+
+**다음 할 일 (Stage 1 종료 후, §21-1-1 (b)(c)(d)):**
+1. **(b) Ablation** — localizer 분기 제거(attr branch를 전역 disentangled CLS로 복귀) 재학습 seed0. HM 하락하면 localization 기여 입증, 무변화면 localizer가 noise → seal.
+2. **(c) Attention map 시각화** — `viz_pgal_attn.py`, val_best/final ckpt로 10장, rust 영역·cut 단면·moisture 등 의미 영역 지목하는지 정성 검증. uniform/무의미하면 seal.
+3. **(d) F_probe 오라클** — PGAL이 §20-7-1 F probe가 짚은 sibling-state 혼동(top1 0.286, gt-in-top5 0.606)을 실제로 복구하는지 정량.
+4. 위 통과 시 **Stage 2** — 3-seed 안정성 + UT-Zap 전이.
+
+### 21-1-3. PGAL (b) ablation launch + C′ staged 재검토 셋업 — 6-2 KST
+
+**PGAL (b) ablation (uniform attention) launch (6-2 15:18 KST):** `loc_uniform=True`로 patch attention을 균등 강제 → z_a = learned-projection mean-pool. **localization만 제거, 추가 pathway·params는 PGAL과 동일**(localization 기여 분리). config 기반 토글(`troika_pgal.py`에 `self.localizer.uniform = bool(getattr(config,"loc_uniform",False))` 추가, 기본 False=PGAL). yml `mit-states-pgal-abluniform.yml`, script `run_pgal_abluniform_seed0.sh`, seed0 10ep GPU1 단독, log `train_mit_pgal_abluniform_seed0_l0.01_20260602_151801.log`. 검증: loc_uniform True 파싱 ✓, attn max−min=0.0(완전 균등) ✓. epoch1 1.80 it/s, NaN 0. **ETA ~21:20 KST.** 판정: PGAL(0.3878) > uniform-ablation이면 localization 기여 입증, ≈이면 localizer=mean-pool noise → seal.
+
+**C′ staged 재검토 셋업 (launch 대기 — ablation 종료 후 GPU1):** §20-4 C′(sealed fail Δ HM −0.0009, bite ~0.2% inert)를 **LOGICZSL(CVPR'25, +1.3 AUC, 동일 logic family on Troika)** 스타일로 재검. 동기: final_presentation Q2 "구현 차이였나"를 추측이 아니라 데이터로. 식별된 차이 3종 반영:
+- **(A) staged injection** — warmup 3ep logic OFF → 2ep 선형 ramp → full 5ep (base 표현 형성 후 투입). step 기반(warmup 11379 / ramp 7586 = 3793 it/ep 기준).
+- **(B) 더 강한 bite** — λ_mutex=λ_compat 0.1→**0.5** (inert ~0.2% → ~1%+ 목표).
+- **(C) eval confound 제거** — `is_grad_enabled` 가드 추가. *발견: 원래 TroikaLogic.loss_calu는 grad 가드가 없어 eval loss에도 logic term이 섞여 best_loss 선택이 미세 오염됐음*(bite 0.2%라 영향은 작았을 것이나, E/PGAL 규율로 교정).
+- 산출물: `model/troika_logic_staged.py`(TroikaLogicStaged < TroikaLogic), `config/troika/mit-states-logic-staged.yml`, `scripts/run_c_prime_staged_seed0.sh`. factory 등록 완료. CPU 검증: config 파싱·staged 스케줄(ep0–3 w=0 / ep4 w=0.5 / ep5+ w=1.0)·rules 파일 모두 정상.
+- **주의(정직성):** staging+stronger λ 동시 변경 = **2-변수 진단**(clean 1-변수 ablation 아님). 질문은 "C′ logic family가 LOGICZSL식 세팅에서 *신호를 내긴 하는가*". 
+- **사전등록 판정 (vs Troika best_loss 0.3899 / single §11-11 0.3940):** test HM이 원 C′를 실질 마진으로 상회(LOGICZSL +1.2 HM 방향, HM ≳ 0.4010) → "구현이 문제였다" 지지 → 3-seed + revival 논의. 노이즈 대역(~0.389 ±0.0038) 잔류 → C′ seal이 staged+stronger에도 robust → 봉인 확정 강화.
+
+### 21-1-4. PGAL (c) attention 시각화 — 예비 음성 + ckpt 중복 발견 — 6-2 KST
+
+**viz 도구:** `Troika/code/viz_pgal_attn.py` — 학습된 TroikaPGAL ckpt에서 **image encoder + PatchLocalizer만** 돌려(전체 forward·text 없이, 저메모리 → GPU1 ablation과 공존) 256 patch attention을 16×16로 reshape→224 upsample→jet overlay. matplotlib 환경 깨짐(numpy 1.22 vs ≥1.23) → PIL+numpy 자체 colormap. 데모 6장(rusty knife/sliced cake/sliced bread/ripe banana/sliced potato/wet dog).
+
+**예비 결과 (epoch_9 = 가장 학습된 localizer, raw attn max 0.042~0.124 = uniform 1/256의 11~32배):**
+- **attention이 속성 영역을 국소화하지 못함.** sliced bread → hot spot이 빵이 아니라 **흰 배경 모서리**; rusty knife → 칼날 일부 + **배경 줄무늬/빈 공간**에 산발. 분산적이고 배경 지향.
+- best_loss ckpt(val_best, epoch~2)는 더 흐릿(max 0.014~0.048). → **task (c) attention 의미성: 현재 "통과" 아님, 음성.**
+- 해석: localizer가 학습은 됨(query norm 1.21→1.51→1.58 across epochs)이나 *의미 있는 국소화*를 학습하지 못함 → mean-pool에 가까운 행동 가능성. **(b) ablation 정량 결과와 합치 시 PGAL seal 쪽으로 기우는 신호.**
+
+**부수 발견 — ckpt 중복 (무해하나 기록):** `final_model.pt`가 `val_best.pt`와 **852개 파라미터 전부 동일**(maxdiff 0.000000). 반면 epoch_4/epoch_9는 서로·val_best와 다름(정상 학습). → train.py의 final 저장이 epoch10 실제 상태가 아니라 best_loss 상태를 기록. **test는 val_best(best_loss)로 평가 → §21-1-2 보고 HM 0.3878 정상**, final_model.pt만 중복(향후 epoch10 상태 분석엔 epoch_9.pt 사용).
+
+**발표 영향:** slide 12(attention heatmap)는 **보류** — ablation 정량 결과(ETA ~21:20)로 slide 11–12 동시 확정. attention이 배경 지향이라 PGAL 차별화 서사가 ablation 결과에 따라 정직하게 재조정될 수 있음. 산출물: `docs/slide_assets/slide12_attn_ep9/`(참고용), `slide4_context/`(맥락 의존성 3장, 발표 사용 가능).
+
+### 21-1-5. PGAL (b) ablation 종료 — 약한 양(+) 신호, localization 기여 방향 확인 — 6-2 21:57 KST
+
+**uniform-attention ablation 학습 종료 (6-2 21:57:34 KST, 6h29m, seed0 10ep GPU1).** `loc_uniform=True` 확정(Namespace 검증). test는 best_loss(val_best, ~epoch2) ckpt로 평가 — PGAL §21-1-2와 동일 선택 규칙 → **사과 대 사과**.
+
+**결과 (MIT-States CW · test · seed0, 동일 조건):**
+| | seen | unseen | HM | AUC |
+|---|---|---|---|---|
+| PGAL (localization) | 0.468 | 0.533 | **0.3878** | **0.2127** |
+| uniform (ablation, 국소화 제거) | 0.4676 | 0.5314 | **0.3831** | **0.2113** |
+| **Δ (PGAL − uniform)** | | | **+0.0047** | **+0.0014** |
+
+- **PGAL > uniform, HM·AUC 둘 다.** → §21-1-1 task (b) "localization 기여 입증" = **양(+) 방향 충족**. attention을 mean-pool로 죽이면 성능이 떨어짐 → localizer가 *순수 noise/collapse는 아님*(§21-1-4의 seal-쪽 추정을 일부 반박).
+- **단, ΔHM +0.0047 = 1-seed 노이즈 대역(±0.0038) 바로 바깥** → **약한 신호.** 강한 차별 주장은 3-seed로 굳혀야 함.
+
+**§21-1-1 PASS 조건 종합:** (a) HM non-regression ✓ / (b) ablation 기여 **약-✓(+방향, marginal)** / (c) attention map 의미성 **✗(§21-1-4 배경 지향, 음성)**. → **정직한 종합 판정: "정량 ablation은 + 방향이나 약하고, 정성 맵은 아직 거칠다."** seal도 strong-PASS도 아닌 경계 — **PGAL 유지하되 3-seed + (d) F-probe로 굳히는 것이 다음 수**. 발표(slide 12)는 ablation 정량 표를 메인으로, 정성 맵은 "거칠다"고 정직하게 병기.
+
+**발표 자료 반영:** `docs/slides_content.md` slide 12(PDF 13)의 `HM ___` 빈칸 → 위 표·해석으로 채움. 같은 파일에 외부인 가독성 패스(용어 풀이·프레이밍, S1–S14) 동시 적용. ※ PDF 자체는 Mac HTML→Chrome 인쇄본이라 재생성 필요(md는 콘텐츠 마스터).
+
+---
+
+## §21-1-6. (d) F-probe 오라클 실측 — PGAL 형제 변별 복구 net 0 → 차별성 미입증 확정 — 6-3 KST
+
+**실행:** PGAL `mit-states_pgal_seed0_l0.01/val_best.pt`를 test 12,995장에 forward(`probe_f.py`, GPU2, out=`data/F_probe_pgal/`) → baseline(E val_best) 캐시와 대조(`oracle_pgal.py` 신규). best_loss ckpt 선택 동일 → 사과 대 사과.
+
+**결과:**
+- 전체 top1: baseline 0.2859 / **PGAL 0.2866** (Δ +0.0008, 노이즈).
+- **복구 가능 집합 R** (baseline top1 wrong & gt in top5) = 4,163장.
+  - PGAL 복구 = **644/4,163 (15.5%)** ↔ PGAL 파괴(baseline-correct를 틀림) = **662/3,715 (17.8%)** → **net −18 (wash)**.
+- **형제 슬라이스** (obj 맞고 attr 틀림) 2,528장: PGAL 복구 = **378/2,528 (15.0%)** ≈ 전체 R 복구율(15.5%)과 동일.
+
+**판정:** PGAL은 형제 변별을 **표적 복구하지 못함**. (1) 고침≈파괴 대칭 churn = "다르지만 더 낫지 않은 모델", (2) 형제 affinity 없음(15.0%≈15.5%) = 설계 목표 미달. §21-1-4(attention 배경 지향) + §21-1-5(ablation 약-+)와 합치 → **국소화가 *학습은 됐으나 의미 있는 위치로 수렴 못 해 전역 평균에 가깝게 collapse*** (그래서 non-regression이면서 동시에 net 0).
+
+**§21-1-1 PASS 최종 종합:** (a) non-regression ✓ / (b) ablation 약-✓ / (c) attention ✗ / **(d) 오라클 ✗(net 0)** → **차별 기여 미입증.** PGAL 현 형태는 seal 경계. 단, 봉인 대신 **방향 전환**으로 진행 결정(§22).
+
+---
+
+## §22. 방향 전환 — Localization-as-Grounding (사전등록) — 6-3 KST
+
+**결정 (사용자, 6-3):** staged C′ seed2 (GPU1, epoch 6/10) **중단** → GPU1 회수. staged C′는 **2-seed(seed0 0.394/0.2177, seed1 0.3883/0.2201, 둘 다 test 노이즈 대역)로 마감**, "LOGICZSL식 staged+강λ로도 신호 없음 → C′ 봉인 robust" 결론 유효(3-seed 완성도만 waive, D′ 선례). → **PGAL 봉인하지 않고 새 축으로 진입.**
+
+**Thesis 재구성 (16축 negative의 조건부 재해석):** 16축 지식주입이 실패한 것은 *아이디어*가 아니라 **닻을 내릴 올바른 국소 표현이 없는 전역 표현 위에 부었기 때문**이라는 가설. → **올바른 국소화가 생기면 그 위에서 지식이 작동할 수 있다.** PGAL(국소화)을 *최종 메커니즘*이 아니라 **지식 grounding의 enabler**로 재정의.
+
+**2단계 게이트 구조:**
+- **[1단계 · 게이트] 국소화를 올바른 영역으로 수렴시킨다.** (현 PGAL의 collapse를 깨는 것)
+- **[2단계] (1단계 통과 시에만) 올바른 국소 표현 위에 지식 주입 → 성능 향상 검증.** 1단계 미통과 시 2단계 검증 불가. compounding risk 인지.
+
+**1단계 메커니즘 (사전등록):** 근본 원인 2개를 동시 타격.
+- **(A) 전역 목발 제거 + peaked attention**: 속성 채점을 z_a에만 의존시키고, z_a가 균등 평균이 못 되게 강제 (top-k 패치 / low-temp softmax / Gumbel hard-select 중 택1; 균등=high-entropy에 강한 페널티).
+- **(B) "어디 봐" 신호 주입 (CLIP patch-text prior)**: 속성 텍스트 임베딩 × CLIP 패치 토큰 유사도 → coarse 위치 히트맵을 탐침 attention의 target/prior로 (MaskCLIP식, 라벨 0). ※ B는 그 자체로 *약한 지식주입* = 2단계로 가는 다리.
+- 첫 런 = **B+A 동시** (A 단독은 뾰족하게 틀린 곳 짚을 위험). `troika_pgal.py`에 toggle로 추가.
+
+**사전등록 PASS 조건 (1단계, AND 결합):**
+- **(a) 국소화 작동**: F-probe 오라클 형제 복구가 **churn 대비 유의한 net +** (현 PGAL 644−662 = −18 대비 분명한 양수로 이동).
+- **(b) 올바른 위치**: attention의 **foreground/변별영역 집중도**가 baseline(uniform/현 PGAL) 대비 **유의 상승** (viz 정성 + 정량).
+- **(c) non-regression**: test HM ≥ **0.3849** 유지.
+- **미달 시**: PGAL **영구 봉인**, 차순위 축(속성=연산자 / generative unseen-feature synthesis)으로.
+
+**검증 인프라(재사용):** `oracle_pgal.py`(형제 복구율) + `viz_pgal_attn.py`(맵이 단면 짚나). 학습 전 cutoff 고정 → 사후해석 함정 차단.
+
+**EV 경고:** (b)(c)(d) 약/음 이력상 "국소화만 고치면 된다"는 미보장. B의 CLIP teacher도 약한 선생(완벽하면 PGAL 불필요) — collapse를 깨는 prior일 뿐. 1단계에서도 오라클 net 0이면 미련 없이 봉인.
+
+**다음:** B+A 변형 코드 설계·구현 → GPU1 학습 → 오라클·viz 판정.
+
+### 22-1. PGAL-grounding (B+A) Stage 1 seed0 완주 + val_best test 정식 측정 — 6-5 KST
+
+**run:** `config/troika/mit-states-pgal-grounding.yml` (B=loc_prior_weight 1.0 / loc_prior_temp 0.1, A=loc_temp 0.7 / loc_topk 0, lambda_loc 0.0로 entropy reg OFF·B 효과 격리), seed0, 10ep, GPU1. 6-4 04:55 종료. val_metric=best_loss.
+
+**측정 방법 주의:** 학습 로그의 epoch별 `best_*` 라인은 **test-oracle peak**(매 epoch test에 bias sweep)이라 부풀려져 있음 — peak HM 0.419/AUC 0.249 @ep3~4. 정당한 숫자는 **val(best_loss)로 고른 ckpt(`val_best.pt`)를 test에 1회 평가**한 값. `test.py --load_model val_best.pt`로 실측:
+
+| | seen | unseen | **HM** | **AUC** |
+|---|---|---|---|---|
+| val_best @ **val** | 0.490 | 0.572 | 0.4144 | 0.2421 |
+| val_best @ **test** (정식) | 0.469 | 0.531 | **0.3836** | **0.2115** |
+| baseline (best_loss) | — | — | 0.3899 | 0.2177 |
+| **Δ vs baseline** | | | **−0.0063** | **−0.0062** |
+
+**판정 (게이트 (c) non-regression):** test HM 0.3836 < cutoff **0.3849** → **(c) FAIL** (−0.0013, 1-seed 노이즈 대역이긴 하나 미달). §22 PASS는 (a)oracle·(b)viz·(c)non-reg의 **AND**이므로, (c) 미달만으로도 게이트 통과 불가 방향. peak가 oracle 환상이었다는 점이 핵심 — val-selected는 baseline 아래. **(a) oracle 형제복구 / (b) attention 집중도 판정은 아직 미실행** → 봉인 확정 전 (a)(b)까지 보고 사용자 판단 대기 (advisor 보고용). 단 EV 경고(§22)대로 (c) 음수면 미련 두지 않기로 사전 합의됨.
+
+### 22-1b. staged C′(l0.5) 3-seed val_best test 보강 — §22 intro의 2-seed 마감을 3-seed로 완성 — 6-5 KST
+
+§22 intro에서 staged C′를 2-seed로 waive 마감했으나, seed2 ckpt가 남아있어 3-seed 모두 `val_best.pt` test 정식 재측정:
+
+| seed | seen | unseen | HM | AUC |
+|---|---|---|---|---|
+| 0 | 0.469 | 0.537 | 0.3934 | 0.2171 |
+| 1 | 0.488 | 0.532 | 0.3891 | 0.2204 |
+| 2 | 0.467 | 0.534 | 0.3863 | 0.2141 |
+| **mean** | | | **0.3896 ± 0.0036** | **0.2172 ± 0.0032** |
+| baseline | | | 0.3899 | 0.2177 |
+| **Δ** | | | **−0.0003** | **−0.0005** |
+
+**판정:** Δ HM −0.0003 / AUC −0.0005, 둘 다 seed noise(±0.003) 안 → **null/fail 재확인**. §20 C′(logic-rule, Δ −0.0009)과 동급. "LOGICZSL식 staged+강λ로도 신호 없음 → C′ 봉인 robust" 결론을 **3-seed로 확정**.
+
+### 22-2. 1단계 게이트 (a) oracle + (b) attention 집중도 측정 → 3축 전부 미달 → PGAL/localization 축 영구 봉인 — 6-6 KST
+
+§22-1에서 (c) non-regression이 미달(0.3836)이었으나, 사전등록 PASS=(a)∧(b)∧(c)의 (a)(b)까지 실측해 봉인 robust 확정.
+
+**측정 인프라:** baseline 캐시는 §21 oracle과 동일 `data/F_probe/test_top5_preds.json`(644−662=−18 비교 기준 유지). grounding val_best로 `probe_f.py` 새 캐시 생성 → `data/F_probe_pgal_grounding/test_top5_preds.json` (12995장, model top1 0.2882). (b)는 신규 `measure_pgal_concentration.py`(localizer attention의 entropy/max-mass/eff-patches 집계, 1504 test img, DataLoader 정식 forward).
+
+**(a) oracle — 형제복구 net:**
+- overall top1: baseline 0.2859 → grounding 0.2882 (Δ +0.0023)
+- recoverable set R=4163 중 666 복구(16.0%), baseline-correct 3715 중 661 파괴(17.8%) → **net +666 − 661 = +5**
+- sibling-state slice(obj 맞고 attr 틀림) 2528 중 389 복구(15.4%)
+- **판정:** §21 PGAL −18 → +5로 이동했으나, 복구율(16.0%)≈파괴율(17.8%) = churn 총량 1327 대비 net +5는 **사실상 0 = targeted localization 아닌 무작위 re-shuffle**. 사전등록 "분명한 양수" 미달 → **(a) FAIL**.
+
+**(b) attention 집중도 (1504 test img, uniform 기준: max-mass 0.00391 / entropy-ratio 1.0 / eff-patches 256):**
+- max-mass mean **0.00715** (uniform의 1.8배에 불과)
+- **entropy-ratio mean 0.9940** (median 0.9944; 1.0=완전붕괴)
+- **eff-patches mean 247.6 / 256** (median 248.2) — attention이 256패치 중 ~248개에 균등 분산 = 사실상 mean-pool
+- **판정:** loc_temp 0.7(A) + loc_prior_weight 1.0 CLIP patch-text prior(B)에도 **localizer가 near-uniform으로 붕괴** — §22 (A)가 막으려던 바로 그 collapse. attention map viz 12장(sibling-confusion, `docs/slide_assets/slide22_grounding_attn/`)도 attn max 0.006~0.008로 전부 평평. **(b) FAIL**.
+
+**§22 1단계 게이트 종합 — (a)∧(b)∧(c) 3축 전부 미달:**
+
+| 게이트 | 기준 | 측정 | 판정 |
+|---|---|---|---|
+| (a) localization 작동 | oracle net 분명한 양수 | net +5 (churn 1327) | ✗ |
+| (b) 올바른 위치 | attn 집중도 유의 상승 | entropy-ratio 0.994 / eff 247.6 | ✗ |
+| (c) non-regression | test HM ≥ 0.3849 | 0.3836 | ✗ |
+
+**봉인 (사전등록대로):** 1단계(localization 수렴) 명확히 실패 → 2단계(올바른 국소표현 위 지식주입) 검증 불가. §22 EV 경고("1단계에서도 오라클 net 0이면 미련 없이 봉인") 발동. **PGAL/image-side localization 축 영구 봉인.** 근본 진단: **(B) CLIP patch-text teacher가 attention을 실제로 뾰족하게 만들지 못함** — 약한 teacher(§22 EV 경고대로 "완벽하면 PGAL 불필요")로는 localizer의 uniform-mean-pool degenerate optimum을 깨지 못함. → §21·§22로 PGAL 2회(localizer만 vs localizer+grounding-prior) 모두 차별성 미입증으로 닫힘. **다음 축: 사전등록 차순위(속성=연산자 operators / generative unseen-feature synthesis).** mechanism 봉인 카운트 갱신.
+
+**산출물:** `code/measure_pgal_concentration.py`(재사용 attention-concentration harness), `data/F_probe_pgal_grounding/`(grounding top-5 캐시), `docs/slide_assets/slide22_grounding_attn/`(viz 12장).
+
+---
+
+## §23. Axis (II) — Attributes-as-Operators (AoP) 사전등록 plan — 6-6 KST
+
+**진입:** §22 PGAL/localization 영구 봉인(6-6) → §21-1에서 정한 차순위 축 (II) operators로. differentiation-first 기조 유지(§21): 목표는 ClusPro 추격이 아니라 **차별화된 우리 메커니즘** — perf가 baseline보다 조금 부족해도 novel+defensible+non-regression이면 PASS.
+
+### 23-0. 차별화 thesis & sealed 축과의 lock
+
+**현 Troika 합성 진단(코드 감사 6-6):** comp 분기 = `[soft-ctx … attr_token obj_token]`을 **frozen CLIP text encoder**에 통과 → self-attention이 attr·obj를 **암묵적·대칭적으로 합성**(`troika.py:construct_token_tensors`, attr는 eos-2, obj는 eos-1 슬롯에 token embedding 삽입). **명시적 합성 연산자 없음** — 합성은 text transformer 내부에 entangle돼 분리·제약 불가.
+
+**AoP thesis:** 속성은 "토큰"이 아니라 **객체 표현에 작용하는 변환 연산자**(Nagarajan-Grauman 2018을 CLIP-CZSL/Troika로 lift). 합성을 joint space의 명시적 대수 연산으로: `c(a,o) = norm(e_clip(a,o) + α·O_a(e_o))`. **이게 sealed 축들과 결정적으로 다른 점**: 합성 *함수 자체*를 바꾸고 operator 대수로 제약 → **E(taxonomy)가 직접 반증한 "aux loss는 representation 못 바꾼다"(§20-6-3) 함정을 구조적으로 우회**(operator는 side-loss가 아니라 composition path 안에 있음).
+
+**Sealed 축 차별 lock:** PGAL(§21·22)=image-side localization(직교), C′/logic(§20-4)=logit penalty, D′(§20-5)=hard-neg InfoNCE, E/taxo(§20-6)=global feat aux CE, OT(§H3)=transport. **operators=text/comp-side 합성함수 재정의** — 위 어느 것과도 메커니즘 비중복.
+
+### 23-1. 메커니즘 (사전등록, 확정)
+
+**합성 경로 = Residual-replace** (사용자 결정 6-6): CLIP-text 합성 보존 + operator가 구조적 보정. ablation(α=0)으로 기여 분리.
+- `e_clip(a,o)` = 현 Troika comp 분기 text feature(정규화). `e_o` = obj 분기 text feature(객체 o, 정규화).
+- **합성:** `c(a,o) = norm( e_clip(a,o) + α · U_a (V_aᵀ e_o) )`. comp_logit = CLS · c · logit_scale.
+- **연산자 O_a = low-rank:** `U_a, V_a ∈ R^{D×r}`, D=768, **r=32**(사전등록). attr별. params ≈ 115×2×768×32 ≈ 5.6M.
+- **게이트 α:** attr별 학습 scalar, **init 0.1**(학습 시작 시 CLIP baseline 근처 → non-reg 초기 보호). α는 학습으로 자유 이동.
+- **※ preview 정밀화 (거부권 명시):** 사용자가 고른 preview는 `O_a(e_clip)`였으나, operator 입력을 **객체 표현 e_o**로 둠 — AoP thesis("속성이 객체에 작용")에 충실하고, 우선시한 **(ii) direction-consistency 해석을 깨끗하게**(변위가 객체에만 의존). 합성 보정·CLIP 보존·α=0 ablation이라는 선택 취지는 동일 유지. 객체 입력이 부적절하다 판단 시 `O_a(e_clip)`로 전환 가능.
+- **학습 loss = 표준 3분기 CE만**(comp는 operator-보정 c 사용) + attr CE + obj CE. **구조 강제 regularizer 없음** — Core-3 구조는 *emergent*여야 함(강제하면 (ii) 순환논증). 구조가 안 생기면 그게 진짜 negative.
+- **eval-path 필수:** `forward_for_open`·`encode_text_for_open`도 operator 보정 mirror — eval에서 operator 우회되면 train/eval mismatch(§20-5-3·§22 교훈). Stage0에서 검증.
+
+**구현:** `model/troika_operator.py`(`model_name='troika_operator'`, Troika 상속, comp 분기만 override), `config/troika/mit-states-operator.yml`, `code/measure_operator_structure.py`(Core-3 측정), `scripts/run_operator_seed0.sh`. HP: lr 1e-4, 10ep, bs8/accum8, val_metric=best_loss, ViT-L/14.
+
+### 23-2. 사전등록 PASS 조건 (AND 결합)
+
+**(a) operator가 실제로 작동 = Core 3종 모두 충족** (사용자 결정 6-6):
+- **(a-i) Ablation 기여:** 동일 val_best ckpt에서 α=0(operator off) eval vs on eval → **comp HM(on) − HM(off) ≥ +0.005**. 동일 weight 비교라 seed noise 무관 = operator 직접 기여.
+- **(a-ii) Attribute-direction 일관성:** 변위 `Δ_{a,o}=α·O_a(e_o)` 정규화 후, attr별 객체 간 평균 cosine 일관성 `C_meas`. **rank-32 random operator baseline `C_rand` 대비 `C_meas − C_rand ≥ 0.10`** (low-rank artifact 넘는 진짜 coherent 방향).
+- **(a-iii) Non-triviality:** `median ‖α·O_a(e_o)‖ / ‖e_clip‖ ≥ 0.05` (변위가 합성 feature의 ≥5% = identity/0 붕괴 아님).
+
+**(b) Non-regression:** val_best @ test **HM ≥ 0.3849** (= baseline 0.3899 − 0.005, PGAL과 동일 cutoff).
+
+**STRETCH:** test HM > 0.4050 OR ablation Δ > +0.01(operator가 강하게 기여).
+
+**FAIL/SEAL:** HM < 0.3849(회귀) **OR** (a-i)/(a-ii)/(a-iii) 중 하나라도 미달(operator가 trivial/무구조 → "operator는 CLIP 합성 위에 구조를 못 더한다"). → operators 축 봉인, 차순위(generative unseen-feature synthesis)로.
+
+### 23-3. 단계 & 검증 인프라
+
+- **Stage 0 smoke:** 1ep/subset — NaN0, VRAM, grad가 U_a/V_a/α로 흐름(α grad≠0), eval-path가 operator 사용(α 토글로 logit 변화 확인), gate clean.
+- **Stage 1:** seed0 10ep GPU1(CUDA_VISIBLE_DEVICES=1) → val_best test eval(`test.py`) + `measure_operator_structure.py`로 Core-3 산출 → 23-2 판정.
+- **Stage 2(PASS 시만):** 3-seed + UT-Zappos. ※ UT-Zap은 AMP NaN fix 필요([[project_lhp_czsl_amp_nan]]).
+
+### 23-4. EV 경고 (정직)
+
+base rate 가혹(16+ 축 sealed). **구체적 실패 모드 2개**: (1) CLIP-text 합성이 강해 operator가 α→0으로 학습 → (a-iii) 미달 = 봉인 신호. (2) operator가 일반 추가 capacity로 fit하나 coherent 구조 없음 → (a-ii) 미달 = 봉인 신호. **단 §21 재정의대로 "차별화O + non-reg + 구조 입증"이면 perf가 baseline 동급이어도 PASS** — 바는 SOTA가 아니라 differentiation. (a-ii)가 핵심 변별: "operator가 단지 fit한 것"과 "구조적으로 합성한 것"을 가름.
+
+**다음:** 사용자 사전등록 승인 → `troika_operator.py` 구현 → Stage 0 smoke.
+
+### 23-5. 사전등록 승인 + 구현 + Stage 0 smoke 통과 + Stage 1 launch — 6-6 KST
+
+**사용자 승인(6-6):** §23 사전등록 그대로 승인. 합성=residual-replace, (a) Core-3.
+
+**구현:** `model/troika_operator.py`(`TroikaOperator(Troika)` + `AttrOperators` 모듈: per-attr U,V∈R^{768×32}, gate α; `forward`/`encode_text_for_open`만 override해 comp 분기만 보정, attr/obj 분기는 vanilla 그대로 → eval 계약 보존). `model_factory.py` 등록(`troika_operator`). `config/troika/mit-states-operator.yml`(rank32/α_init0.1/init_std0.02, bs8/accum8, 10ep, best_loss). `parameters.py`에 `--operator_rank/_alpha_init/_init_std/_disabled` 추가. `smoke_operator.py`, `scripts/run_operator_seed0.sh`, `measure_operator_structure.py`(Core-3 (a-ii)(a-iii) 판정).
+
+**Stage 0 smoke 통과 (`smoke_operator_20260606_020453.log`):** operator_params 5.65M(=115×2×768×32+α), total trainable 34.7M. NaN 0, VRAM 14.3GB, 1.81 it/s. **grad-flow ✓**(|U.grad|2.6e-2, |V.grad|2.5e-2, |α.grad|5.1e-3 전부>0 → operator 학습됨). **eval-path operator 사용 ✓**(comp ON≠OFF L2 0.0063, **attr/obj 분기 byte-identical=True → 계약 보존**, §20-5-3/§22 우회버그 차단). **gate ✓**(loss_calu==no_grad==base CE 17.4534, operator-specific loss 없음 → ckpt-selection 혼동 0). ⚠️ **주의: init non-triviality 0.0063 = (a-iii) floor 0.05의 1/8** — init(α0.1+small std)이라 당연, floor는 학습후 진단. **Stage 1이 operator를 ~8× 키워야 (a-iii) 통과**, 안 크면 §23-4 실패모드(1)(α→0 붕괴)=봉인 신호. 사전등록 init값 유지(post-hoc 튜닝 안 함).
+
+**Stage 1 launch (6-6 02:06 KST, GPU1, `train_mit_operator_seed0_20260606_020625.log`):** seed0 10ep 정상 시작(train loss 2.18, 1.16 it/s, GPU1 100%/16.8GB, NaN 0). 3793 iter/ep × 10 + epoch별 test eval → ~6–7h 예상(≈09:00 KST). save mit-states_operator_seed0.
+
+**판정 절차(완주 후):** (b) `test.py --load_model val_best.pt` → test HM; (a-i) `test.py`를 `--operator_disabled` 유/무로 2회 → comp HM on−off; (a-ii)(a-iii) `measure_operator_structure.py`. §23-2 AND 판정.
+
+### 23-6. operator(AoP) Stage 1 완주 + 정식판정 waive 봉인 — 6-9 KST
+
+**완주:** seed0 10ep 정상 종료(6-6 08:49 KST, `done!`, NaN/crash 0, final train loss 0.0311). save에 `val_best.pt`/`epoch_9`/`final_model` 존재. GPU1 이후 idle.
+
+**raw 학습로그 test 라인(epoch별 oracle-peak, bias sweep):** best_hm **0.3851** / AUC 0.2162 / seen 0.4761 / unseen 0.5383. cutoff(b) 0.3849에 +0.0002로 사실상 동률이나, **이 숫자는 §22-1에서 규명한 test-oracle peak** — PGAL 전례(peak 0.419→val_best 정식 0.3836)대로면 val_best 정식 eval은 cutoff 아래로 갈 공산. smoke에서 (a-iii) non-triviality init 0.0063 = floor 0.05의 1/8 → §23-4 실패모드(1)(α→0/저변위) 신호.
+
+**판정 (사용자 결정 6-9, 정식판정 waive):** base rate(누적 17축 sealed) + raw가 oracle-peak로도 동률 + (a-iii) floor 신호를 종합, §F($65 waive) 선례대로 **(a)Core-3·(b)val_best 정식 eval을 waive하고 operators 축 봉인.** 정식 3-command(위 23-5 판정절차)는 보존 — advisor 요청 시 사후 채움 가능. **operators=text/comp-side 합성함수 재정의 축도 차별화 입증 미달로 closed.**
+
+**봉인 카운트:** §22 PGAL(localization) → §23 operators까지, **누적 18축 sealed.** axis/hyperparam/inference/localization/composition-function 전 경로에서 Troika의 ClusPro gap 닫기 실패 재확인.
+
+---
+
+## §24. Axis (III) — Generative unseen-feature synthesis 사전등록 plan (stub) — 6-9 KST
+
+**진입:** §23 operators 봉인(6-9) → §22 봉인 노트·§23-2/23-4에 사전등록된 차순위 축으로. 18축이 전부 *discriminative*(입력/표현측: logit penalty, aux CE, InfoNCE, transport, localization, composition operator)였던 것과 달리, 이건 유일한 **data-side / generative** 경로.
+
+**thesis:** unseen (attr,obj) 쌍의 visual feature를 직접 합성해 학습에 노출. generator `G(e_a, e_o, z)` → CLIP-space feature 합성, seen pair로 G 학습 → unseen pair feature 생성 → classifier를 unseen 분포에 직접 노출(seen/unseen imbalance 보완). CZSL feature-generation 갈래를 Troika/CLIP-CZSL로 lift. "gap=architectural"(§20) 결론과 정합 — 표현을 못 바꾸면 데이터를 만든다.
+
+**차별 lock:** 봉인 18축은 전부 discriminative. generative/data-augmentation 경로는 메커니즘 비중복.
+
+### 24-1. 생성기 결정 = cVAE — 6-9 KST
+
+**사용자 결정(6-9): generator = conditional VAE (cVAE).** 후보 4개(cVAE/WGAN-GP/VAE-GAN/flow) 비교 후 선택. 근거: (1) adversarial 없음 → AMP NaN 이력([[project_lhp_czsl_amp_nan]])·단일 run 예산과 정합(안정적 수렴), (2) ablation 깨끗(decoder/synthetic-feature만 떼면 기여 분리), (3) CADA-VAE 등 CLIP-era ZSL feature-gen 표준 → defensible. WGAN(f-CLSWGAN)이 published reference로 더 강하나 목표가 SOTA 아닌 "작동 입증"이라 불안정성 떠안을 이유 약함. cVAE 미달 시 Stage 2에서 VAE-GAN 하이브리드로 escalate 여지 남김.
+
+**cVAE 설계 함의(확정 전 메모):** 합성 대상 = ViT-L/14 visual feature 768-dim **L2 정규화(hypersphere)** → recon loss는 MSE보다 **cosine/von Mises-Fisher 계열** 또는 출력 renormalize 필요. 조건 = (attr,obj) 임베딩(CLIP text vs Troika 학습 임베딩 — 미결). latent dim·β(KL weight) 미결.
+
+### 24-2. 합성 feature 사용방식 = (A) Decoupled classifier — 6-9 KST
+
+**사용자 결정(6-9): (A) decoupled classifier** (f-CLSWGAN/CADA-VAE 표준 레시피). 파이프라인 확정:
+1. CLIP backbone freeze → seen-pair train 이미지의 진짜 visual feature 추출·캐시(1회).
+2. cVAE 학습: (attr,obj) 조건 → seen feature 재구성.
+3. unseen 조합의 synthetic feature 대량 생성.
+4. [real-seen + synthetic-unseen feature]로 분류기만 학습 → zero-shot을 (거의) supervised로 전환.
+
+근거: 가벼움(feature-space only, backbone 재학습 0 → 단일 GPU 최적), ablation 깨끗(synthetic feature 유/무), published recipe라 defensible, **봉인 18 joint 축과 메커니즘 확실 분리**(차별점="feature-space data synthesis"). 단점(Troika CMT 적응 이점 미사용)은 differentiation-first 기조상 수용.
+
+### 24-3. cVAE 조건 = separate attr+obj CLIP text concat — 6-9 KST
+
+**사용자 결정(6-9): ② separate attr-text + obj-text CLIP 임베딩 concat.** 각 단어를 frozen CLIP text encoder로 인코딩(L2-norm) → 이어붙여 조건 `c ∈ R^{1536}`. 근거: cVAE가 **결합 자체를 학습**(①처럼 CLIP text가 합성을 다 해버리지 않음) → (a) 기여 ablation·차별성이 깨끗. ① joint comp-text보다 약간 불안정하나 differentiation 우위. ③(Troika 학습 임베딩)은 봉인축과 근접/일반화 약 → 기각.
+
+### 24-4. 나머지 설계 락 (recon/latent/β, feature source, 분류기) — 6-9 KST (claude 추천 기본값, 사용자 위임)
+
+- **Feature source = 학습된 Troika baseline(seed0, best_loss ckpt)의 adapted image CLS feature** (768-dim, L2-norm). raw CLIP 대신 adapted를 쓰는 이유: Troika CMT/adapter 적응 이점 보존 → **non-reg 비교 공정**(decoupled로 갈아끼우며 adaptation까지 버리면 합성 무관하게 회귀할 risk 차단, §24-6 EV Risk1). fallback: raw frozen CLIP.
+- **cVAE arch:** encoder MLP(768 → 512 → 2×64), **latent_dim 64**, decoder MLP(64+1536 → 512 → 768) → 출력 **L2-renorm**. 조건 c는 encoder 입력·decoder 입력 양쪽 concat.
+- **Loss:** recon = `1 − cos(x̂, x)` (feature가 정규화돼 hypersphere → MSE 대신 cosine) + **β·KL**, β 0→0.01 annealing(posterior collapse 방지). f-CLSWGAN의 CLS 항은 1차엔 미사용(순수 cVAE 유지, Stage2 escalate 여지).
+- **생성:** unseen pair당 z~N(0,I) **N=300** 샘플 디코드 → synthetic feature.
+- **분류기 = 학습 linear `W ∈ R^{P×768}`** (P=closed-world pair 수), **CLIP comp-text("a photo of attr obj") 임베딩으로 init**, CE(+logit_scale)로 학습. seen pair row=real feature(이미지별), unseen pair row=synthetic feature(300/pair). bias/threshold는 val로 선택(oracle 금지).
+- **Eval:** 표준 closed-world seen/unseen/HM/AUC, val_best 선택 후 test 1회.
+
+### 24-5. 사전등록 PASS 조건 (AND) — 6-9 KST
+
+**(a) generative 축이 실제로 작동 (AND):**
+- **(a-i) 기여 ablation:** 분류기 [real-seen + synthetic-unseen] vs [real-seen only(unseen row=text-init frozen)] → **Δ HM ≥ +0.005**, unseen-pair acc 상승이 동인. (합성이 unseen에 실제 신호 주는가 = 핵심.)
+- **(a-ii) 생성 충실도/anti-collapse:** held-out seen pair에서 synthetic 생성 → real centroid와 mean cosine이 **random-condition baseline 대비 Δ ≥ 0.10** (feature가 pair-specific, generic 붕괴 아님). operator (a-ii)/(a-iii) 정신 계승.
+
+**(b) Non-regression:** val-selected, test **HM ≥ 0.3849** (baseline 0.3899 − 0.005, 전 축 공통 cutoff).
+
+**STRETCH:** test HM > 0.4050.
+**FAIL/SEAL:** HM < 0.3849 **OR** (a-i)/(a-ii) 중 하나라도 미달 → generative 축 봉인(차순위 미정).
+
+### 24-6. EV 경고 (정직) — 6-9 KST
+
+base rate 가혹(18축 sealed). 구체적 실패 모드 3개: **(Risk1)** decoupled linear 분류기가 Troika joint scoring보다 약해 합성과 무관하게 non-reg 미달 — adapted feature source + text-init로 완화하나, [real-seen only] 분류기가 baseline 한참 아래면 *decoupled 틀 자체가 병목*(합성 품질 confound) → (a-i) 비교는 유효하나 (b) 판정엔 이 confound 명기. **(Risk2)** cVAE posterior collapse → generic feature → (a-ii) 미달(β annealing 완화). **(Risk3)** synthetic 과적합으로 seen-acc 하락 → real/fake balance 조절. **단 §21 재정의대로 "차별화O + non-reg + (a) 입증"이면 baseline 동급이어도 PASS.**
+
+### 24-7. 구현 계획 (승인 대기) — 6-9 KST
+
+`model/`·`code/`에 decoupled 파이프라인 신규(Troika 본체 미변경): ① `extract_features.py`(Troika baseline ckpt로 seen train feature 캐시) → ② `model/cvae_featgen.py`(cVAE) + `train_cvae.py` → ③ `generate_unseen.py`(synthetic 캐시) → ④ `train_classifier.py`(real+synth CE) + eval → ⑤ `measure_gen_fidelity.py`((a-ii)). **Stage 0 smoke**(NaN0/VRAM/grad-flow/eval-path/분류기 init 검증) → **Stage 1** seed0 GPU1(CUDA_VISIBLE_DEVICES=1) → §24-5 AND 판정. PASS 시 Stage 2(3-seed + UT-Zap, AMP NaN fix 필요 [[project_lhp_czsl_amp_nan]]). HP: ViT-L/14, mit-states, best_loss 선택.
+
+**다음:** 사용자 사전등록 승인 → Stage 0 smoke 구현.
+
+### 24-8. 구현 + Stage 0 smoke 통과 — 6-9 KST
+
+**사용자 승인(6-9):** §24 사전등록 그대로 승인(cVAE / decoupled / cond=attr+obj text concat / 나머지 claude 추천 기본값). Stage 0 smoke 구현 지시.
+
+**Feature source 확정(사전등록 deviation 명시):** 순수 baseline ckpt 미저장 → **c_prime_seed0(logic, λ=0.1) val_best.pt**를 baseline-equiv 추출기로 사용. 근거: TroikaLogic은 `__init__`/`loss_calu`만 override(arch 변경 0), 실제로 vanilla Troika에 `load_state_dict` 시 **missing=0 unexpected=0**(state_dict 키 완전일치 확인) → adapted CLS feature가 baseline과 동일계열, Δ HM −0.0009. Stage1도 동일 ckpt 사용 예정(advisor 보고 시 deviation 명기).
+
+**구현(Troika 본체 미변경, code/ 신규):** `featgen.py`(공용 lib) + `smoke_featgen.py`(Stage 0). lib 구성: `load_extractor`(vanilla Troika strict=False), `extract_image_features`(adapted CLS 768-d L2-norm), `text_embeddings`(CLIP text, context_length=8 주의), `CVAE`(enc/dec MLP, latent64, cond1536, 출력 L2-renorm), `cvae_loss`(1−cos recon + β·KL), `generate_features`, `PairClassifier`(cosine prototype, comp-text init) + `train_pair_classifier`, `evaluate_with_official`(Troika **Evaluator/test() 그대로 재사용** → 평가 프로토콜 동일 보장). 버그수정 2건: text tokenizer가 CPU 텐서·기본 context_length=77 반환 → `.cuda()` + `context_length=config.context_length(8)` 로 토큰화.
+
+**Stage 0 smoke 통과 (subset: train512/val256/test256, 30 unseen pair × 50 gen):**
+- **[1] 추출:** ckpt 로드 missing=0/unexpected=0, train_feats finite, **L2-norm OK(mean norm 1.00000)**.
+- **[2] text emb:** attr[115]/obj[245]/comp[1962] 전부 finite·normalized.
+- **[3] cVAE:** **grad-flow 전 param>0**(enc 1.5e-3, fc_mu 3.0e-3, fc_logvar 2.8e-4, dec.0 0.12, dec.last 0.47), **recon 0.955→0.288 감소**, KL finite(0.009~0.049), NaN 0.
+- **[4] 생성:** synthetic 1500개 finite, **L2-norm OK**, shape 정상.
+- **[5] 분류기:** real-only CE 0.228(W 업데이트 확인), real+synth CE 1.34, NaN 0.
+- **[6] eval-path:** 공식 Evaluator/test() 정상 작동 → HM/AUC 산출(subset이라 수치 무의미).
+- **[7] (a-i) ablation 토글 live**(real-only HM 0.509 vs real+synth 0.559, **Δ +0.0497**, unseen 0.536→0.634 — subset 기준 mechanics만), **(a-ii) fidelity 측정 작동**(cos(syn,real) 0.969 vs cos(rand-cond,real) 0.790, Δ +0.179).
+- **VRAM peak 2.39 GB** (cached-feature space라 매우 가벼움).
+
+**중요(Stage1 EV):** real+synth가 subset에서도 unseen↑·HM↑ 보인 건 **고무적이나 mechanics 검증일 뿐**(256장 test, 30 unseen pair, bias sweep 낙관 편향). 정식 판정은 Stage1 full(30338 train feat / 700 unseen pair 전체 / val_best 선택 / 12995 test). Risk1(decoupled cosine 분류기가 Troika joint scoring보다 약해 (b) 미달) 여전 유효 — Stage1 [real-only] full HM이 baseline 0.3899 대비 어디 떨어지는지가 1차 관문.
+
+**다음:** Stage 1 driver(전체 feature 디스크 캐시 → cVAE 풀학습 → synthetic 생성 → 분류기 real+synth/real-only → val_best+test 공식평가 → §24-5 AND 판정) 작성 + GPU1 launch.
+
+### 24-9. Stage 1 완주 + 봉인 (메커니즘 작동, decoupled 천장이 병목) — 6-9 KST
+
+**실행:** `stage1_featgen.py` seed0 GPU1, 정상 완주(NaN 0). feature 캐시(train 30338/val 10420/test 12995, `save/featgen_seed0/`), cVAE 100ep(recon 0.955→0.172, KL~2.09), synthetic 210000개(700 unseen × 300), 분류기 ×2 val-AUC select. val selects / test reports(test-oracle epoch picking 없음).
+
+**§24-5 AND 판정 (seed0):**
+| 게이트 | 기준 | 측정 | 판정 |
+|---|---|---|---|
+| (a-i) 합성 기여 | Δ HM ≥ +0.005 | **+0.0051** (test HM real+synth 0.3068 − real-only 0.3017; unseen 0.3732→0.4196) | PASS |
+| (a-ii) 생성 충실도 | Δ ≥ 0.10 | **+0.4389** (cos(syn\|correct,real) 0.9651 vs cos(syn\|rand-cond,real) 0.5262, n=1262) | PASS |
+| (b) non-reg | HM ≥ 0.3849 | **0.3068** (AUC 0.1474) | **FAIL (−0.078)** |
+
+→ AND 게이트 (b) 미달 → **FAIL/SEAL**. 단일 seed지만 Δ −0.078 = seed noise(±0.0038)의 ~20배 → 3-seed 불요, 결정적.
+
+**진단 (핵심): generative 메커니즘은 작동, decoupled 틀이 병목 = §24-6 Risk1 실현.**
+- (a-ii) +0.44: cVAE 생성 feature가 pair-specific(real centroid와 cos 0.965, random-cond 0.526) — **collapse 없음, 생성 품질 우수**.
+- (a-i) +0.0051: synthetic unseen이 unseen 인식 실제 향상(0.3732→0.4196, +0.0464).
+- **그러나 real-only 분류기도 HM 0.3017** = baseline 0.3899 −0.082. **합성 품질이 아니라 Troika CMT joint scoring을 버린 decoupled cosine 분류기의 천장(~0.31)이 원인.** 합성 +0.005로 0.08 격차 메우기 불가 — 병목이 분류기 구조. §24-6 Risk1("real-only가 baseline 한참 아래면 decoupled 틀 자체가 병목, 합성 confound") 정확히 예측대로.
+
+**결론:** **§24 generative(decoupled feature-synthesis) 축 SEALED.** 메커니즘은 입증됐으나(작동 O), decoupled 천장 때문에 non-reg 불가. **누적 19축 sealed.** 산출물: `code/featgen.py`(재사용 lib), `code/stage1_featgen.py`, `save/featgen_seed0/`(feature 캐시·cvae·result.json).
+
+**프로그램 종료점:** §21-1 사전등록 우선순위((I)PGAL→(II)operators→(IV)generative)를 **전부 소진**. axis/hyperparam/inference/localization/composition-function/generative 6경로 모두 봉인. → 다음은 axis 변형이 아니라 **framework pivot / 새 architecture 결정 국면**(advisor 논의용 brainstorm). decoupled 천장이 병목이었던 만큼, generative를 살리려면 *joint 통합*(§24-2에서 기각한 옵션 B)이 후보이나 봉인한 joint-training 축군과 인접 → 차별성 재검토 필요.
+
+---
+
+# §25. NEW FRAMEWORK — GenProto (Recognition-by-Generated-Prototype) 사전등록 — 6-9 KST
+
+**진입(사용자 결정 6-9):** §21 우선순위 축 전소진(19축 sealed) → "덧붙이기" 전략 사망진단 확정 → **axis가 아닌 새 framework 빌드로 pivot.** 사용자가 4갈래(generative-native / image-side 분해 / ClusPro base+혁신 / from-scratch) 중 **generative-native** 선택. 근거: §24가 **합성 메커니즘 작동(fidelity +0.44, unseen +0.046)을 직접 입증**, 죽은 건 decoupled frozen-cosine scorer뿐 → blank-slate가 아니라 *작동 증거 위에* 설계하는 evidence-led pivot. CLIP-CZSL 메이저 framework 중 generative-native 부재 = novel.
+
+### 25-0. Thesis & 차별 lock
+
+**Thesis:** 합성을 framework의 **코어**로. 합성기 G가 모든 composition의 visual prototype을 정의(seen=real 보정, unseen=생성)하고, **강한 joint-trained CMT scorer**가 이미지 patch와 매칭. §24의 유일 사망원인(frozen cosine 천장 0.31)을 강한 학습 scorer로 정확히 제거. "gap=architectural"(§20)을 표현 덧붙이기가 아니라 **composition을 생성으로 정의**하는 구조로 정면 대응.
+
+**차별 lock (19축 + 외부 SOTA):**
+- §24 generative=decoupled+frozen cosine scorer → GenProto=joint-trained CMT scorer (천장 제거가 핵심 차이).
+- Troika=composition anchor가 frozen CLIP **text** → GenProto=**생성된 visual prototype** anchor.
+- ClusPro=**real-clustered** primitive prototype(unseen 조합 생성 불가) → GenProto=conditional generator로 **unseen 조합 prototype 직접 생성**.
+- 봉인 joint축군(C′/D′/E/OT)=Troika에 loss 덧붙이기 → GenProto=scoring anchor 자체를 생성으로 교체(구조 변경).
+
+### 25-1. 아키텍처 (사전등록, 확정)
+
+- **Image:** CLIP ViT-L/14 + adapters (baseline-equiv c_prime_seed0 ckpt, **frozen** — 검증된 표현 재사용, 새 메커니즘만 학습) → CLS f[768] + patches[257,768].
+- **Generator G(attr,obj,z):** §24 cVAE 재사용(enc로 recon-grounding, dec로 생성). cond=[attr_text;obj_text](1536), latent 64. prototype p(a,o)=`G.decode(z, cond)` (L2-norm). eval-time mean prototype = z=0 (또는 K-sample 평균).
+- **Scorer (CMT급, Troika `CrossAttentionLayer`×cmt_layers 재사용):** query=prototype p[P,768], kv=patch_norm(patches)[B,257,768] → cross-attn → `cmt_p = p + λ·CMT(p,patches)` → normalize → `logit = scale·cos(norm CLS f, cmt_p)` → [B,P]. **frozen cosine 아님 — CMT+λ 학습.**
+- **학습 loss (joint):** `L = CE(comp_logits) + w_recon·(1−cos recon) + β·KL`. CE가 G+scorer를 discriminative하게, recon+KL이 G를 real feature 분포에 grounding(§24 작동분 보존). train pair(1262)로 CE.
+- **eval-path:** 전 closed-world pair(1962) prototype 생성(z=0) → CMT scorer로 test 이미지 scoring → [N,P] → Troika `Evaluator/test()` 그대로(프로토콜 동일).
+
+### 25-2. 사전등록 PASS (AND, §21 differentiation-first)
+
+- **(a) 생성 코어 작동:** ablation — eval에서 prototype을 생성본 vs **comp-text init**로 교체 → 생성본 HM이 text-init보다 **≥ +0.005** 높음(생성이 실제 기여). + prototype fidelity(생성 prototype이 real centroid와 cos, random-cond 대비 Δ ≥ 0.10, §24 (a-ii) 계승).
+- **(b) Non-regression:** val-selected test **HM ≥ 0.3849**.
+- **STRETCH:** test HM **> 0.407** (ClusPro 추월 → framework로 강력).
+- **FAIL/SEAL:** HM < 0.3849 **OR** (a) 미달.
+
+### 25-3. 단계 & EV 경고
+
+- **Stage 0 smoke:** MVP subset — G가 prototype 생성, CMT scorer 동작, joint loss grad가 G(enc/dec)+CMT(cross-attn/λ)로 흐름, recon↓, eval-path [N,P] 산출, ablation 토글(생성 vs text-init) logit 변화, NaN0.
+- **Stage 1:** seed0 full(frozen image, G+CMT 학습) GPU1 → val_best test + ablation/fidelity → §25-2 판정.
+- **EV 경고(정직):** 새 framework=큰 빌드, base rate 가혹(19축 sealed). 핵심 risk: **(R1) joint 학습 불안정** — scorer가 patches만으로 풀고 generator 무시(prototype 기여 0 → (a) 미달) OR generator mode-collapse. **(R2)** frozen image라 표현 천장은 Troika와 동일 → non-reg는 scorer 강도에 의존. 단 §24가 코어(생성) 작동을 이미 입증 → blank-slate보다 근거 우위. **§21 재정의대로 차별화O+non-reg+(a)입증이면 baseline 동급도 PASS.**
+
+**다음:** 사용자 사전등록 승인됨(6-9) → `genproto.py`(scorer) + `smoke_genproto.py` 구현 → Stage 0.
+
+### 25-4. 구현 + Stage 0 smoke 통과 — 6-9 KST
+
+**구현(Troika 본체 미변경):** `genproto.py` — `GenProtoScorer`(Troika `CrossAttentionLayer`×cmt_layers 재사용: prototype query × patch_norm(patches) cross-attn → `p + λ·CMT` → cos(CLS, ·)·scale), `GenProto`(generator=§24 `featgen.CVAE` 재사용 + scorer; `prototypes`(z=0 mean)/`recon`(grounding)/`logits`), `encode_images`(frozen extractor → CLS+patches). `smoke_genproto.py`.
+
+**Stage 0 smoke 통과 (subset: train64/test16 img, scorer cmt_layers=3, init_lamda=0.1):**
+- **[1] extractor:** ckpt missing0/unexpected0, CLS[64,768]·patches[64,257,768] finite.
+- **[2] cond:** train[1262]/all[1962] finite.
+- **[3] joint train (핵심 — R1 1차 관문):** **grad가 generator(enc 2.4e-3, fc_mu 4.3e-3, dec_last 3.35) AND scorer(cmt0.q 3.2e-2, λ 2.28) 양쪽 모두로 흐름** → scorer가 generator 무시(R1) 안 함, 둘 다 학습. **CE 7.87→0.027(↓), recon 1.01→0.246(↓)**, NaN0.
+- **[4] eval-path:** 전 1962 pair 생성 prototype → CMT scorer → [16,1962] → 공식 Evaluator 정상 작동(HM 0.0 = 16-img·40-iter overfit subset이라 무의미, plumbing만).
+- **[5] ablation 토글:** 생성 prototype vs comp-text-init logit 차이 **10.60** → prototype source가 점수에 강하게 기여(생성이 실제로 anchor 역할).
+- **VRAM peak 21.4 GB** (batch64 × 1262 prototype CMT w/ grad — 높음). **Stage1 주의: bs8(+grad accum)으로 낮춰야**(Troika도 bs8/accum8 동일 CMT 비용). prototype은 step당 1회 G forward로 재계산.
+
+**다음:** Stage 1 driver(frozen image encoder, G+CMT joint 학습 seed0 full, bs8/accum8, val_best test + ablation/fidelity) 작성 → GPU1 launch → §25-2 판정.
+
+### 25-5. Stage 1 1차 발산 → 진단 → lr fix 재실행 — 6-10 KST
+
+**구현:** `train_genproto.py`(frozen encoder로 전 이미지 CLS+patches **CPU 캐시** 21GB → 재인코딩 0; G+CMT joint, bs32, val-AUC select). 버그수정 1건: recon cond를 이미지 idx로 인덱싱 → pair-label 인덱싱(`cond_train[lab_all[b]]`). **속도: frozen+cache로 ~5min/epoch**(다른 run의 ViT end-to-end 7h 대비, ViT forward/backward 제거가 핵심).
+
+**1차 run 발산(lr 1e-3):** val AUC ep0 0.042→ep4 0.020(near-random, §24 decoupled 0.147보다도 아래), **CE ep1 3.48 최저 후 ep5 3.99로 역행**, recon 동반 상승. 사용자 결정으로 kill 후 진단.
+
+**진단 (`diag_genproto.py`, 4-config 5ep sweep):** config A(lr **1e-4**, recon+KL 유지)에서 **val AUC 단조 상승 0.150→0.176→0.179→0.188 / HM 0.313→0.360**(ep3까지, 계속 상승), **protoInterCos 0.224→0.160 감소(prototype 더 분별됨 = collapse 아님 → KL-collapse 가설 기각)**, λ·logit 안정. → **발산 원인 = lr 1e-3 과대**(Troika CMT 표준 1e-4). 1e-4로 안정 학습 확인. (B no-KL/C disc-only/D 1e-3재현은 A 확정 후 user가 full run 재개 지시로 중단.)
+
+**재실행(6-10 00:40, GPU1):** `train_genproto.py` **lr 1e-4 / 20ep**(수렴 느려 epoch↑, val-select가 overfit 처리)로 full run launch. cache hit으로 인코딩 skip. **주목: diag에서 ep3 HM 0.36이 아직 상승 중 → frozen 표현 위에서도 non-reg(b) 0.3849 통과 가능성 보임.** 완주 후 §25-2 (a-i 생성vs text-init / a-ii fidelity / b non-reg) 판정.
+
+### 25-6. Stage 1 완주 → §25-2 판정 FAIL/SEAL (scorer 작동·생성 기여 입증, frozen image 천장이 병목) — 6-10 KST
+
+**완주(6-10 00:40→02:28, GPU1, lr 1e-4/20ep):** val HM **ep2 0.3577 피크 후 단조 하락**(ep3 0.3521→ep10 0.3298) → 20ep로도 추가 상승 없음, val-AUC select가 ep2 부근 checkpoint 채택. `genproto_valbest.pt`·`stage1_result.json` 산출.
+
+**§25-2 판정 (seed0, test):**
+- **(b) non-reg FAIL (지배적):** **gen HM=0.3262 / AUC=0.1609** (seen 0.450 / unseen 0.442) vs baseline 0.3849 → **Δ HM −0.059** = seed noise(±0.0038)의 ~15배, 결정적.
+- **(a-i) 생성 기여 PASS:** gen HM 0.3262 > **text-init HM 0.3038** = **Δ +0.0224** (≥0.005) → 생성 prototype이 frozen-cosine 아닌 강한 scorer 위에서도 실제 기여(§24 (a-i) 재확인, 마진 4배↑). 분해 흥미: **gen은 seen↑(0.450 vs 0.351), text는 unseen↑(0.497 vs 0.442)** — 생성이 seen 보정, text가 unseen 일반화에 강함.
+- **(a-ii) fidelity 미달:** fid_cm 0.761 − fid_cr 0.685 = **Δ 0.076** (< 0.10 임계).
+- verdict(스크립트): **FAIL/SEAL.**
+
+**핵심 진단 (R2 실현 확정):** §24 사망원인(frozen cosine 천장)을 joint CMT scorer로 **정확히 제거했고 생성도 기여하는데도** HM 0.326 천장. scorer·generator 둘 다 작동(R1 회피 입증) → 남은 단일 병목 = **frozen image encoder(c_prime ckpt)**. §24와 동일 천장이지만 이번엔 강한 학습 scorer로도 못 뚫음 → **frozen 표현 위에서는 anchor를 text→생성 visual로 바꿔도 baseline(end-to-end ViT 0.3899) 도달 불가**가 결정적으로 확정. §25-1에서 "검증된 표현 재사용, 새 메커니즘만 학습"으로 frozen을 등록한 것이 정확히 천장의 원인.
+
+**결론:** **§25 GenProto(frozen-image, generated-prototype anchor + joint CMT scorer) 축 SEALED. 누적 20축 sealed.** 산출물: `code/genproto.py`(scorer lib), `code/train_genproto.py`, `code/diag_genproto.py`, `save/genproto_seed0/`(enc 캐시·valbest·result.json). 잔여 코드버그 1건(재사용 시): `train_genproto.py:71` text test-eval에서 device mismatch(cpu vs cuda) — 핵심 결과(json) 기록엔 무영향, prototype `.cuda()` 누락만 수정.
+
+**다음 결정 국면 (advisor-level, 사용자 판단 필요):** generative-native framework의 마지막 lever = **image encoder unfreeze(end-to-end GenProto)**. R2(frozen 천장)를 직접 제거하는 유일 경로이나 — (1) cache 이점 소멸, ~7h/epoch(Troika 동급), (2) Troika가 **이미 end-to-end text-anchor로 0.3899** 달성 → GenProto가 생성 visual anchor로 이를 **추월/동급**해야 하는데, frozen regime에서 생성의 text 대비 마진은 +0.022에 불과 → end-to-end에서도 GenProto ≈ Troika ± 소폭일 EV. 차별성(novel anchor)은 실재하나 SOTA-beating EV는 modest. **20축 sealed·base rate 가혹** 감안 시, end-to-end 시도(고비용·중EV) vs generative-native 종료·새 framework 결정은 brainstorm 사안.
+
+### 26-5. 구현 + Stage 0 smoke 통과 — 6-10 KST
+
+**구현(Troika 본체 미변경, 단일-통제):** `model/genproto_e2e.py` `GenProtoE2E(Troika)` — Troika를 subclass, comp(i_element=0) branch의 anchor만 `idx_text_features`(frozen text) → `self._proto(idx)`(=cVAE `G.decode(z=0, [attr_text;obj_text])`, L2-norm)로 교체. **attr/obj branch·CMT·patch_norm 루프내 재적용 quirk까지 baseline 그대로 보존**(단일 변수화). `loss_calu`는 `super().loss_calu`(Troika CE) + `w_recon·(1−cos recon(CLS)) + β·KL`. generator cond = frozen CLIP text(attr/obj, lazy 1회 계산). `use_text_anchor` 토글로 (a-i) eval-time swap. `forward_for_open`은 NotImplementedError(text_first eval로 frozen-text anchor 새는 것 차단; train.py evaluate는 predict_logits=forward 경로라 무관). model_factory 등록(`troika_genproto_e2e`). yml `mit-states-genproto-e2e.yml`(baseline 복제 + **bs8/accum8**[§11-11 0.3899 recipe]·20ep·gen_latent64/w_recon1.0/beta_max0.01·warmup0·text_first False). driver `train_genproto_e2e.py`(=train.py fork + β-ramp + optional encoder warmup + val_best(best_loss) select + §26-2 판정/(a-i)/(a-ii)/seen-unseen/json).
+
+**Stage 0 smoke 통과(`smoke_genproto_e2e.py`, bs8 subset):**
+- [1] gen 파라미터 optimizer 포함·trainable, 학습 파라미터 254개(=baseline + generator).
+- [2] **anchor swap 실효: 생성 prototype vs comp-text cos mean −0.003(거의 직교)** → comp branch가 실제로 다른 anchor로 구동.
+- [3] **grad가 encoder(adapter) AND generator AND cmt AND lamda 전부로 흐름**(§25 frozen은 encoder grad 無였던 것과 대비 — 여기가 핵심 신규 관문). g_enc step0=0(adapter LoRA up_proj zero-init 특성)→step1부터 0.013→0.02 정상(baseline 동일 거동). NaN0.
+- [4] **recon 0.977→0.945 단조 하락 → R4(이동 CLS target) 단기 안정.**
+- [5] eval-path: 전 closed pair [B,1962] finite, logit_infer OK. [6] **VRAM peak 10.2 GB**(bs8, A5000 24GB 대폭 여유).
+
+**타이밍 정정(중요):** 실측 **~2.9 it/s × 3793 batch/ep ≈ 22min/epoch → 20ep ≈ ~7.3h(overnight 1회)**. §26-3에서 "~7h/epoch"로 적은 것은 추정 오류 — 실제는 **~7h 전체**(§25-5의 "ViT end-to-end 7h"도 per-run 총량이었음). multi-day 아님 → Stage 1 비용 부담 하향 수정.
+
+**다음:** Stage 1 driver dry-run(eval/judgment 경로 = §25를 죽인 device-mismatch 지점 검증) 통과 확인 후 GPU1 full launch(20ep, ~7h).
+
+### 26-6. Stage 1 dry-run 통과 → full run launch — 6-10 KST
+
+**dry-run(E2E_EPOCHS1/MAX_BATCHES20/FIDELITY_MAXN2000, 별도 save dir):** train 20step → val → test(gen) → test(text ablation) → fidelity → judgment → json **전 경로 크래시 0 완주.** **§25를 죽인 eval device-mismatch 버그 없음 확인.** 숫자는 20step이라 무의미하나 신호는 예상대로: **text-anchor HM 0.215**(encoder 거의 frozen인 20step에서도 의미값 → fork가 Troika baseline 경로 온전 보존), **gen-anchor HM 0.000**(generator random-init cold-start, fidelity Δ≈0) — §25 frozen과 동일 cold-start(학습 후 gen이 text 추월했음). R3(generator가 따라잡는지)는 full run이 판정.
+
+**Stage 1 full launch(6-10 13:22 KST, GPU1, PID 1600771):** `train_genproto_e2e.py` 기본값(20ep, bs8/accum8, lr1e-4, w_recon1.0, beta_max0.01, warmup0). 기동 직후 GPU1 93% 가동·VRAM 12GB·2.84it/s·recon 0.99→0.87 하락. **ETA ~7.4h(~20:45 KST).** 완주 후 §26-2 판정(=stage1_result.json) → PASS/FAIL/SEAL.

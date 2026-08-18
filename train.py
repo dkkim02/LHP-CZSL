@@ -46,6 +46,8 @@ def train_model(model, optimizer, config, train_dataset, val_dataset, test_datas
     scaler = torch.cuda.amp.GradScaler()
 
     for i in range(config.epoch_start, config.epochs):
+        if hasattr(model, 'set_epoch'):
+            model.set_epoch(i)
         progress_bar = tqdm.tqdm(
             total=len(train_dataloader), desc="epoch % 3d" % (i + 1)
         )
@@ -158,6 +160,9 @@ if __name__ == "__main__":
                                        phase='train',
                                        split='compositional-split-natural',
                                        same_prim_sample=config.same_prim_sample)
+    # KD (Round-10): expose dataset index in the train batch only when KD is on.
+    if float(getattr(config, 'kd_weight', 0.0)) > 0:
+        train_dataset.expose_index = True
 
     val_dataset = CompositionDataset(dataset_path,
                                      phase='val',

@@ -16,14 +16,10 @@ model:
   obj_inference_weight: 1.0
   contrastive_weight: 0.1
   hsic_weight: 0.1
-  # H3 (§17-10): Sinkhorn-balanced batch-level coupling for prototype update.
-  use_ot_assignment: True
-  sinkhorn_epsilon: 0.05
-  sinkhorn_iters: 3
 
 train:
   dataset: mit-states
-  dataset_path: data/mit-states
+  dataset_path: /home/student/dongki/DPAS/data/mit-states
   optimizer: Adam
   scheduler: StepLR
   step_size: 5
@@ -32,12 +28,12 @@ train:
   attr_dropout: 0.3
   weight_decay: 0.00001
   context_length: 8
-  train_batch_size: 4
-  gradient_accumulation_steps: 16
+  train_batch_size: 8
+  gradient_accumulation_steps: 8
   seed: 0
   epochs: 15
   epoch_start: 0
-  save_path: checkpoint/cluspro_baseline_l14_mit_v2_ot_seed0
+  save_path: checkpoint/cluspro_baseline_l14_mit_v2_bnctrl_seed0
   save_every_n: 1
   val_metric: best_hm
   save_final_model: True

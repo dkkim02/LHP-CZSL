@@ -613,6 +613,10 @@ if __name__ == "__main__":
     if '--load_model' in sys.argv:
         idx = sys.argv.index('--load_model')
         config.load_model = sys.argv[idx + 1]
+    if '--flow_blend' in sys.argv:
+        idx = sys.argv.index('--flow_blend')
+        config.flow_blend = float(sys.argv[idx + 1])
+        print(f'[override] flow_blend = {config.flow_blend}')
 
     # set the seed value
     print("----")
@@ -779,10 +783,13 @@ if __name__ == "__main__":
     else:
         os.makedirs(config.save_path, exist_ok=True)
         title = config.save_path + '/'
+    blend_suffix = ""
+    if '--flow_blend' in sys.argv:
+        blend_suffix = f".fb{config.flow_blend:.2f}"
     if config.open_world:
-        result_path = title + "open.calibrated.json"
+        result_path = title + f"open.calibrated{blend_suffix}.json"
     else:
-        result_path = title + "closed.json"
+        result_path = title + f"closed{blend_suffix}.json"
 
     with open(result_path, 'w+') as fp:
         json.dump(results, fp)

@@ -210,6 +210,11 @@ class CompositionDataset(Dataset):
             data = [
                 img, self.attr2idx[attr], self.obj2idx[obj], self.train_pair_to_idx[(attr, obj)]
             ]
+            # KD (Round-10): expose the dataset index so train_forward can fetch the
+            # precomputed teacher logits for this image. Appended LAST; harmless to all
+            # readers (they index batch[0:4]; hard_pair needs len>=14). Only used when kd_weight>0.
+            if getattr(self, 'expose_index', False):
+                data.append(index)
         else:
             data = [
                 img, self.attr2idx[attr], self.obj2idx[obj], self.pair2idx[(attr, obj)]

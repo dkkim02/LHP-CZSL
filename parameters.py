@@ -60,6 +60,41 @@ parser.add_argument("--use_ot_assignment", help="H3 (§17-10): Sinkhorn-balanced
 parser.add_argument("--sinkhorn_epsilon", help="H3 Sinkhorn entropic regularization.", type=float, default=0.05)
 parser.add_argument("--sinkhorn_iters", help="H3 Sinkhorn iterations.", type=int, default=3)
 
+# Rank-3: Counterfactual-consistency train-time module (PART B). 0 disables (baseline byte-identical).
+parser.add_argument("--cf_weight", help="Rank-3 counterfactual-consistency loss weight. 0 disables.", type=float, default=0.0)
+parser.add_argument("--cf_warmup_epochs", help="Rank-3 CF loss linear warmup epochs.", type=int, default=3)
+parser.add_argument("--cf_recomb", help="Rank-3 CF recombination: 'global_objswap' (param-free) or 'mlp'.", type=str, default="global_objswap")
+
+# Round-4: Disentangler normalization type. 'bn' reproduces baseline. {bn, ln, gn, none}.
+parser.add_argument("--disent_norm", help="Disentangler norm: bn|ln|gn|none.", type=str, default="bn")
+
+# Round-5: prototype queue seeding. Path to a bank {'attr':(|A|,K,D),'obj':(|O|,K,D)}.
+# Absent -> randn init (baseline-identical).
+parser.add_argument("--proto_init_path", help="Path to prototype-seed bank .pt; absent=randn.", type=str, default=None)
+
+# Round-6: Vision LoRA on ViT attention projections. lora_rank=0 -> off (baseline-identical).
+parser.add_argument("--lora_rank", help="LoRA rank r; 0 disables.", type=int, default=0)
+parser.add_argument("--lora_alpha", help="LoRA alpha (scale=alpha/r). Default=r.", type=float, default=0.0)
+parser.add_argument("--lora_targets", help="LoRA targets: 'out' | 'in_out'.", type=str, default="out")
+parser.add_argument("--drop_adapters", help="Drop bottleneck visual adapters (LoRA replaces them).", action="store_true")
+
+# Round-7: calibration regularizers (comp CE only). 0 = off (baseline-identical).
+parser.add_argument("--label_smoothing", help="Label smoothing on COMP CE only. 0=off.", type=float, default=0.0)
+parser.add_argument("--logit_norm_tau", help="LogitNorm tau on COMP CE only (training). 0=off.", type=float, default=0.0)
+
+# Round-8: R-Drop comp-consistency (symKL between two dropout views, comp only). 0 = off.
+parser.add_argument("--rdrop_weight", help="R-Drop comp symKL weight. 0=off (baseline-identical).", type=float, default=0.0)
+
+# Round-9: Masked Composition Modeling. 0 = off (baseline-identical). variant: textmask|imgmask.
+parser.add_argument("--mcm_weight", help="MCM loss weight. 0=off.", type=float, default=0.0)
+parser.add_argument("--mcm_variant", help="MCM variant: textmask|imgmask.", type=str, default="textmask")
+
+# Round-10: comp-only KD from a frozen teacher. 0 = off (baseline-identical).
+parser.add_argument("--kd_weight", help="KD loss weight. 0=off.", type=float, default=0.0)
+parser.add_argument("--kd_tau", help="KD temperature.", type=float, default=4.0)
+parser.add_argument("--kd_warmup_epochs", help="KD linear warmup epochs.", type=int, default=3)
+parser.add_argument("--kd_teacher_path", help="Path to teacher logits .pt.", type=str, default=None)
+
 # MSCI + VAPS + DHNO
 parser.add_argument("--use_vaps", help="enable VAPS (Visual-Adaptive Prompt Shifting)", type=bool, default=True)
 parser.add_argument("--feature_layer", help="ViT block for f_local (MSCI)", type=int, default=6)
